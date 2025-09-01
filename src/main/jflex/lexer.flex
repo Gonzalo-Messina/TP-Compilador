@@ -26,6 +26,12 @@ import static lyc.compiler.constants.Constants.*;
   private Symbol symbol(int type, Object value) {
     return new Symbol(type, yyline, yycolumn, value);
   }
+  private void saveToken() {
+  	SymbolTableGenerator.getInstance().addToken(yytext());
+  }
+  private boolean isValidStringLength() {
+  	return yylength() <= Constants.MAX_STRING_LITERAL_LENGTH;
+  }
 %}
 
 
@@ -46,6 +52,8 @@ Digit = [0-9]
 WhiteSpace = {LineTerminator} | {Identation}
 Identifier = {Letter} ({Letter}|{Digit})*
 IntegerConstant = {Digit}+
+
+Text =	[\"].*[\"]
 
 %%
 
@@ -69,6 +77,13 @@ IntegerConstant = {Digit}+
 
   /* whitespace */
   {WhiteSpace}                   { /* ignore */ }
+
+  {Text}			    {
+        					if(!isValidStringLength())
+        						throw new InvalidLengthException("\"" + yytext() + "\""+ " string length not allowed");
+                            saveToken("string");
+                            return symbol(ParserSym.TEXT, yytext());
+  	  				    }
 }
 
 

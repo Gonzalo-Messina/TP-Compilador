@@ -15,6 +15,9 @@ terminal OPEN_BRACKET;
 terminal CLOSE_BRACKET;
 terminal INTEGER_CONSTANT;
 terminal IDENTIFIER;
+terminal READ;
+terminal WRITE;
+terminal TEXT;
 
 // Non Terminals
 non terminal sentence;
@@ -22,6 +25,8 @@ non terminal assignment;
 non terminal expression;
 non terminal term;
 non terminal factor;
+non terminal read;
+non terminal write;
 
 // Start Symbol Definition
 start with sentence;
@@ -37,3 +42,7 @@ term ::= factor {: System.out.println("Term = factor"); :};
 factor ::= IDENTIFIER:id  {: System.out.println("Id: " + id); :};
 factor ::= INTEGER_CONSTANT:constant {: System.out.println("Constant: " + constant ); :};
 factor ::= OPEN_BRACKET expression CLOSE_BRACKET {: System.out.println("Factor = (Expression)"); :};
+
+read    ::= READ OPEN_BRACKET IDENTIFIER CLOSE_BRACKET {: System.out.println("Regla - READ"); :};
+write   ::= WRITE OPEN_BRACKET IDENTIFIER CLOSE_BRACKET {: System.out.println("Regla - WRITE"); :};
+write   ::= WRITE OPEN_BRACKET TEXT CLOSE_BRACKET {: System.out.println("Regla - WRITE"); :};
