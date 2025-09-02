@@ -3,7 +3,8 @@ package lyc.compiler;
 import java_cup.runtime.Symbol;
 import lyc.compiler.ParserSym;
 import lyc.compiler.model.*;
-import static lyc.compiler.constants.Constants.*;
+import lyc.compiler.constants.Constants;
+import lyc.compiler.files.SymbolTableGenerator;
 
 %%
 
@@ -28,6 +29,9 @@ import static lyc.compiler.constants.Constants.*;
   }
   private void saveToken() {
   	SymbolTableGenerator.getInstance().addToken(yytext());
+  }
+  private void saveTokenCTE(String dataType){
+  	  	SymbolTableGenerator.getInstance().addToken(yytext(),dataType);
   }
   private boolean isValidStringLength() {
   	return yylength() <= Constants.MAX_STRING_LITERAL_LENGTH;
@@ -54,6 +58,8 @@ Identifier = {Letter} ({Letter}|{Digit})*
 IntegerConstant = {Digit}+
 
 Text =	[\"].*[\"]
+Read = "read"
+Write = "write"
 
 %%
 
@@ -61,6 +67,10 @@ Text =	[\"].*[\"]
 /* keywords */
 
 <YYINITIAL> {
+  /* keywords */
+  {Read}                                   { return symbol(ParserSym.READ); }
+  {Write}                                  { return symbol(ParserSym.WRITE); }
+
   /* identifiers */
   {Identifier}                             { return symbol(ParserSym.IDENTIFIER, yytext()); }
   /* Constants */
@@ -81,7 +91,7 @@ Text =	[\"].*[\"]
   {Text}			    {
         					if(!isValidStringLength())
         						throw new InvalidLengthException("\"" + yytext() + "\""+ " string length not allowed");
-                            saveToken("string");
+                            saveTokenCTE("string");
                             return symbol(ParserSym.TEXT, yytext());
   	  				    }
 }

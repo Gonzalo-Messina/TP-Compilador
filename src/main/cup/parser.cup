@@ -32,6 +32,8 @@ non terminal write;
 start with sentence;
 
 sentence ::= assignment {: System.out.println("End"); :};
+sentence ::= read {: System.out.println("Sentence = READ"); :};
+sentence ::= write {: System.out.println("Sentence = WRITE"); :};
 assignment ::= IDENTIFIER ASSIG expression {: System.out.println("Assignment"); :};
 expression ::= expression PLUS term {: System.out.println("+"); :};
 expression ::= expression SUB term {: System.out.println("-"); :};
