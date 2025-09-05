@@ -31,7 +31,7 @@ Para Linux/Mac:
 
 Para Windows:
 ```
-./mvnw.cmd clean install
+.\mvnw.cmd clean install
 ```
 
 El mismo generará los ejecutables y correrá los tests.
@@ -48,7 +48,7 @@ Para Linux/Mac:
 
 Para Windows:
 ```
-./mvnw.cmd clean install -Drun-compiler
+.\mvnw.cmd clean install -Drun-compiler
 ```
 
 Dicho comando compilará el proyecto y luego correrá el script run.sh o run.bat (Para Unix o Windows respectivamente) presente en el directorio raíz.
