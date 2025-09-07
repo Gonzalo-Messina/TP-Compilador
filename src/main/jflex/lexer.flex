@@ -15,6 +15,7 @@ import lyc.compiler.files.SymbolTableGenerator;
 %line
 %column
 %throws CompilerException
+%state COMMENT
 %eofval{
   return symbol(ParserSym.EOF);
 %eofval}
@@ -118,6 +119,11 @@ Init             = "Init"
                      return symbol(ParserSym.TEXT, yytext());
                    }
 
+/* EMPEZAR COMENTARIO MULTI-LINEA */
+  "#+" { yybegin(COMMENT); }
+
+  /* COMENTARIO EN UNA LINEA */
+  "#" [^\n]* { /* Ignore single-line comment */ }
 
  /* OPERADORES ARITMÉTICOS Y DE ASIGNACIÓN */
  {Plus}           { return symbol(ParserSym.PLUS); }
@@ -152,6 +158,17 @@ Init             = "Init"
  /* ESPACIOS EN BLANCO (IGNORAR) */
  {WhiteSpace}     { /* ignore */ }
 
+}
+
+/* COMENTARIO MULTI-LINEA */
+<COMMENT> {
+  [^#\n]+ { /* ignore content */ }
+  "#" { /* ignore standalone '#' inside comment */ }
+  "\"" { /* ignore regular double quotes inside comment */ }
+  "“" { /* ignore opening curly quotes inside comment */ }
+  "”" { /* ignore closing curly quotes inside comment */ }
+  \n { /* ignore newlines inside comment */ }
+  "+#" { yybegin(YYINITIAL); /* End of multi-line comment */ }
 }
 
 /* ========================================================================== */

@@ -1,7 +1,28 @@
-Init {
-    a1, b1 : Int
-    variable1 : Float
-    p1, p2, p3 : String
+init {
+    varFloat1, varFloat2, varFloat3 : Float
+    varInt1, varInt2 : Int
+    varStr1 : String
 }
 
-c:=d*(e-21)/4
+varInt1 := 130814
+
+varFloat1 := 99999.99
+varFloat1 := 99.
+varFloat1 := .9999
+
+varInt2 := 4
+varFloat2 = varFloat1 * (varInt1 - 21) / 4
+
+varFloat3 := 1
+
+varFloat2 =: 27 - varFloat3
+varFloat2 =: varInt1 + 500
+varFloat2 =: 34 * 3
+varFloat2 =: varInt1 / varInt2
+s
+
+varStr1 := "@sdADaSjfla%dfg"
+varStr1 := "asldk  fh sjf"
+
+
+#+ Esto es un comentario +#

@@ -23,7 +23,7 @@ terminal IDENTIFIER;
 terminal READ;
 terminal WRITE;
 terminal TEXT;
-
+terminal COMMENT;
 terminal FLOAT_CONSTANT;
 terminal TYPE_INT;
 terminal TYPE_FLOAT;
@@ -58,7 +58,7 @@ sentence_list ::= sentence_list sentence | sentence;
 sentence ::= assignment {: System.out.println("Assignment"); :};
 sentence ::= read {: System.out.println("Sentence = READ"); :};
 sentence ::= write {: System.out.println("Sentence = WRITE"); :};
-
+sentence ::= COMMENT {: System.out.println("comentario"); :};
 // NUEVO: tipos de datos
 typeDef ::= TYPE_INT    {: RESULT = "Int"; :};      // NUEVO
 typeDef ::= TYPE_FLOAT  {: RESULT = "Float"; :};    // NUEVO
