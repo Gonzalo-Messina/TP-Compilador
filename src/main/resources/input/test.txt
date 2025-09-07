@@ -1,1 +1,7 @@
-c=d*(e-21)/4
+Init {
+    a1, b1 : Int
+    variable1 : Float
+    p1, p2, p3 : String
+}
+
+c:=d*(e-21)/4
