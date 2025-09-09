@@ -62,12 +62,16 @@ OpenBracket = "("
 CloseBracket = ")"
 OpenBrace = "{"
 CloseBrace = "}"
+OpenSquare  = "["
+CloseSquare = "]"
 
 Letter = [a-zA-Z]
 Digit = [0-9]
 
 Comma = ","
 Colon = ":"
+Semicolon = ";"
+
 
 WhiteSpace = {LineTerminator} | {Identation}
 Identifier = {Letter} ({Letter}|{Digit})*
@@ -84,7 +88,7 @@ TypeInt          = "Int"
 TypeFloat        = "Float"
 TypeString       = "String"
 
-Init             = "Init"
+Init             = "init"
 
 
 %%
@@ -153,6 +157,10 @@ Init             = "Init"
  {CloseBracket}   { return symbol(ParserSym.CLOSE_BRACKET); }
  {OpenBrace}      { return symbol(ParserSym.OPEN_BRACE); }
  {CloseBrace}     { return symbol(ParserSym.CLOSE_BRACE); }
+ {OpenSquare}     { return symbol(ParserSym.OPEN_SQUARE); }
+ {CloseSquare}    { return symbol(ParserSym.CLOSE_SQUARE); }
+ {Semicolon}      { return symbol(ParserSym.SEMICOLON); }
+
 
 
  /* ESPACIOS EN BLANCO (IGNORAR) */

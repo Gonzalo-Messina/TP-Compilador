@@ -14,10 +14,10 @@ terminal MULT;
 terminal DIV;
 terminal OPEN_BRACKET;
 terminal CLOSE_BRACKET;
-terminal OPEN_BRACE;         // NUEVO para '{'
-terminal CLOSE_BRACE;        // NUEVO para '}'
-terminal COMMA;              // NUEVO para separar variables
-terminal COLON;              // NUEVO para ':'
+terminal OPEN_BRACE;
+terminal CLOSE_BRACE;
+terminal COMMA;
+terminal COLON;
 terminal INTEGER_CONSTANT;
 terminal IDENTIFIER;
 terminal READ;
@@ -30,6 +30,9 @@ terminal TYPE_FLOAT;
 terminal TYPE_STRING;
 
 terminal GT, LT, GE, LE, EQ, AND, OR, NOT;
+terminal OPEN_SQUARE;
+terminal CLOSE_SQUARE;
+terminal SEMICOLON;
 
 // Non Terminals
 non terminal program;
@@ -42,11 +45,16 @@ non terminal factor;
 non terminal read;
 non terminal write;
 
-non terminal init_block;      // NUEVO
-non terminal decl_list;       // NUEVO
-non terminal declaration;     // NUEVO
-non terminal id_list;         // NUEVO
-non terminal typeDef;         // NUEVO
+non terminal init_block;
+non terminal decl_list;
+non terminal declaration;
+non terminal id_list;
+non terminal typeDef;
+
+//Funcion triangle
+non terminal arg_list;
+non terminal triangle;
+non terminal coords;
 
 // Start Symbol Definition
 start with program;
@@ -60,15 +68,15 @@ sentence ::= read {: System.out.println("Sentence = READ"); :};
 sentence ::= write {: System.out.println("Sentence = WRITE"); :};
 sentence ::= COMMENT {: System.out.println("comentario"); :};
 // NUEVO: tipos de datos
-typeDef ::= TYPE_INT    {: RESULT = "Int"; :};      // NUEVO
-typeDef ::= TYPE_FLOAT  {: RESULT = "Float"; :};    // NUEVO
-typeDef ::= TYPE_STRING {: RESULT = "String"; :};   // NUEVO
+typeDef ::= TYPE_INT    {: RESULT = "Int"; :};
+typeDef ::= TYPE_FLOAT  {: RESULT = "Float"; :};
+typeDef ::= TYPE_STRING {: RESULT = "String"; :};
           
 
-init_block ::= INIT OPEN_BRACE decl_list CLOSE_BRACE {: System.out.println("Init block cerrado"); :}; // NUEVO
+init_block ::= INIT OPEN_BRACE decl_list CLOSE_BRACE {: System.out.println("Init block cerrado"); :};
 
-decl_list ::= decl_list declaration;   // NUEVO
-decl_list ::= declaration;             // NUEVO
+decl_list ::= decl_list declaration;
+decl_list ::= declaration;
 
 // NUEVO: una declaración puede tener varias variables separadas por coma
 declaration ::= id_list COLON typeDef:td {: System.out.println("Declaracion de variables tipo " + td); :};
@@ -76,9 +84,6 @@ declaration ::= id_list COLON typeDef:td {: System.out.println("Declaracion de v
 
 id_list ::= id_list COMMA IDENTIFIER:id  {: System.out.println("Variable: " + id); :};
 id_list ::= IDENTIFIER:id  {: System.out.println("Variable: " + id); :};
-
-
-
 
 assignment ::= IDENTIFIER ASSIG expression {: System.out.println("Assignment"); :};
 expression ::= expression PLUS term {: System.out.println("+"); :};
@@ -93,7 +98,14 @@ factor ::= IDENTIFIER:id  {: System.out.println("Id: " + id); :};
 factor ::= INTEGER_CONSTANT:constant {: System.out.println("Constant: " + constant ); :};
 factor ::= FLOAT_CONSTANT:constant   {: System.out.println("Float: " + constant ); :};      // NUEVO
 factor ::= OPEN_BRACKET expression CLOSE_BRACKET {: System.out.println("Factor = (Expression)"); :};
+factor ::= IDENTIFIER OPEN_BRACKET arg_list CLOSE_BRACKET {: System.out.println("Funcion triangle - metodo"); :};
 
-read    ::= READ OPEN_BRACKET IDENTIFIER CLOSE_BRACKET {: System.out.println("Regla - READ"); :};
-write   ::= WRITE OPEN_BRACKET IDENTIFIER CLOSE_BRACKET {: System.out.println("Regla - WRITE"); :};
-write   ::= WRITE OPEN_BRACKET TEXT CLOSE_BRACKET {: System.out.println("Regla - WRITE"); :};
+
+read    ::= READ OPEN_BRACKET IDENTIFIER CLOSE_BRACKET {: System.out.println("READ"); :};
+write   ::= WRITE OPEN_BRACKET IDENTIFIER CLOSE_BRACKET {: System.out.println("WRITE"); :};
+write   ::= WRITE OPEN_BRACKET TEXT CLOSE_BRACKET {: System.out.println("WRITE"); :};
+
+//Funcion triangle
+arg_list ::= triangle SEMICOLON triangle {: System.out.println("Funcion triangle - params"); :};
+triangle ::= OPEN_SQUARE coords SEMICOLON coords SEMICOLON coords CLOSE_SQUARE {: System.out.println("Funcion triangle - coord triangulo"); :};
+coords ::= expression COMMA expression {: System.out.println("Funcion triangle - valores"); :};

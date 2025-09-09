@@ -11,18 +11,21 @@ varFloat1 := 99.
 varFloat1 := .9999
 
 varInt2 := 4
-varFloat2 = varFloat1 * (varInt1 - 21) / 4
+varFloat2 := varFloat1 * (varInt1 - 21) / 4
 
 varFloat3 := 1
 
-varFloat2 =: 27 - varFloat3
-varFloat2 =: varInt1 + 500
-varFloat2 =: 34 * 3
-varFloat2 =: varInt1 / varInt2
-s
-
-varStr1 := "@sdADaSjfla%dfg"
-varStr1 := "asldk  fh sjf"
-
+varFloat2 := 27 - varFloat3
+varFloat2 := varInt1 + 500
+varFloat2 := 34 * 3
+varFloat2 := varInt1 / varInt2
 
 #+ Esto es un comentario +#
+
+read(test)
+write(test)
+write("test")
+
+varInt1 := 2
+varFloat1 := 3.8
+areaMax := triangleAreaMaximum( [0,x; 4.0,12; 2.5,3] ; [x,0; 6,0; z,2] )
