@@ -82,6 +82,8 @@ Text =	[\"].*[\"]
 Read = "read"
 Write = "write"
 
+If = "if"
+
 /*Data Types */
 
 TypeInt          = "Int"
@@ -92,11 +94,7 @@ Init             = "init"
 
 
 %%
-
-
 /* keywords */
-
-
 
 <YYINITIAL> {
 
@@ -107,6 +105,10 @@ Init             = "init"
  {TypeInt}        { return symbol(ParserSym.TYPE_INT); }
  {TypeFloat}      { return symbol(ParserSym.TYPE_FLOAT); }
  {TypeString}     { return symbol(ParserSym.TYPE_STRING); }
+ {If}             { return symbol(ParserSym.IF); }
+ {And}	          {	return symbol(ParserSym.AND,yytext()); }
+ {Or}	          {	return symbol(ParserSym.OR,yytext());  }
+ {Not}            { return symbol(ParserSym.NOT,yytext()); }
 
 
  /* IDENTIFICADOR */
@@ -143,12 +145,6 @@ Init             = "init"
  {Lt}             { return symbol(ParserSym.LT); }
  {Ge}             { return symbol(ParserSym.GE); }
  {Le}             { return symbol(ParserSym.LE); }
-
- /* OPERADORES LÓGICOS */
- {And}            { return symbol(ParserSym.AND); }
- {Or}             { return symbol(ParserSym.OR); }
- {Not}            { return symbol(ParserSym.NOT); }
-
 
  /* SÍMBOLOS DE PUNTUACIÓN Y AGRUPACIÓN */
  {Comma}          { return symbol(ParserSym.COMMA); }

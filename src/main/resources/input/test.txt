@@ -29,3 +29,21 @@ write("test")
 varInt1 := 2
 varFloat1 := 3.8
 areaMax := triangleAreaMaximum( [0,x; 4.0,12; 2.5,3] ; [x,0; 6,0; z,2] )
+
+a := 1
+b := 1
+c := 2
+if (a > b AND c > b)
+{
+    write("a es mas grande que b y c es mas grande que b")
+}
+
+if (NOT a > b)
+{
+    write("a no es mas grande que b")
+}
+
+if (a > b OR c > b)
+{
+    write("a es mas grande que b o c es mas grande que b")
+}

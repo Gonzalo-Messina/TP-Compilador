@@ -28,11 +28,18 @@ terminal FLOAT_CONSTANT;
 terminal TYPE_INT;
 terminal TYPE_FLOAT;
 terminal TYPE_STRING;
-
-terminal GT, LT, GE, LE, EQ, AND, OR, NOT;
+terminal GT;
+terminal LT;
+terminal GE;
+terminal LE;
+terminal EQ;
+terminal AND;
+terminal OR;
+terminal NOT;
 terminal OPEN_SQUARE;
 terminal CLOSE_SQUARE;
 terminal SEMICOLON;
+terminal IF;
 
 // Non Terminals
 non terminal program;
@@ -56,6 +63,10 @@ non terminal arg_list;
 non terminal triangle;
 non terminal coords;
 
+non terminal if_statement;
+non terminal condition;
+non terminal simple_condition;
+
 // Start Symbol Definition
 start with program;
 
@@ -67,6 +78,22 @@ sentence ::= assignment {: System.out.println("Assignment"); :};
 sentence ::= read {: System.out.println("Sentence = READ"); :};
 sentence ::= write {: System.out.println("Sentence = WRITE"); :};
 sentence ::= COMMENT {: System.out.println("comentario"); :};
+sentence ::= if_statement {: System.out.println("Sentence = IF"); :};
+
+if_statement ::= IF OPEN_BRACKET condition CLOSE_BRACKET OPEN_BRACE sentence_list CLOSE_BRACE {: System.out.println("IF"); :};
+
+condition ::= simple_condition {: System.out.println("Condición test"); :};
+condition ::= simple_condition AND simple_condition {: System.out.println("Condición AND"); :};
+condition ::= simple_condition OR simple_condition  {: System.out.println("Condición OR"); :};
+condition ::= NOT simple_condition                  {: System.out.println("Condición NOT"); :};
+
+simple_condition ::= expression GT expression {: System.out.println(">"); :};
+simple_condition ::= expression LT expression {: System.out.println("<"); :};
+simple_condition ::= expression GE expression {: System.out.println(">="); :};
+simple_condition ::= expression LE expression {: System.out.println("<="); :};
+simple_condition ::= expression EQ expression {: System.out.println("="); :};
+
+
 // NUEVO: tipos de datos
 typeDef ::= TYPE_INT    {: RESULT = "Int"; :};
 typeDef ::= TYPE_FLOAT  {: RESULT = "Float"; :};
@@ -99,6 +126,9 @@ factor ::= INTEGER_CONSTANT:constant {: System.out.println("Constant: " + consta
 factor ::= FLOAT_CONSTANT:constant   {: System.out.println("Float: " + constant ); :};      // NUEVO
 factor ::= OPEN_BRACKET expression CLOSE_BRACKET {: System.out.println("Factor = (Expression)"); :};
 factor ::= IDENTIFIER OPEN_BRACKET arg_list CLOSE_BRACKET {: System.out.println("Funcion triangle - metodo"); :};
+factor ::= AND;
+factor ::= OR;
+factor ::= NOT;
 
 
 read    ::= READ OPEN_BRACKET IDENTIFIER CLOSE_BRACKET {: System.out.println("READ"); :};
