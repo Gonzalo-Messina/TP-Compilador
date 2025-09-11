@@ -40,6 +40,8 @@ terminal OPEN_SQUARE;
 terminal CLOSE_SQUARE;
 terminal SEMICOLON;
 terminal IF;
+terminal WHILE;
+terminal IS_ZERO;
 
 // Non Terminals
 non terminal program;
@@ -55,13 +57,16 @@ non terminal write;
 non terminal init_block;
 non terminal decl_list;
 non terminal declaration;
-non terminal id_list;
+non terminal java.util.List id_list;
 non terminal typeDef;
 
 //Funcion triangle
 non terminal arg_list;
 non terminal triangle;
 non terminal coords;
+
+//Funcion IsZero
+non terminal while_stmt;
 
 non terminal if_statement;
 non terminal condition;
@@ -79,6 +84,7 @@ sentence ::= read {: System.out.println("Sentence = READ"); :};
 sentence ::= write {: System.out.println("Sentence = WRITE"); :};
 sentence ::= COMMENT {: System.out.println("comentario"); :};
 sentence ::= if_statement {: System.out.println("Sentence = IF"); :};
+sentence ::= while_stmt {: System.out.println("Sentence = WHILE"); :};
 
 if_statement ::= IF OPEN_BRACKET condition CLOSE_BRACKET OPEN_BRACE sentence_list CLOSE_BRACE {: System.out.println("IF"); :};
 
@@ -106,11 +112,26 @@ decl_list ::= decl_list declaration;
 decl_list ::= declaration;
 
 // NUEVO: una declaración puede tener varias variables separadas por coma
-declaration ::= id_list COLON typeDef:td {: System.out.println("Declaracion de variables tipo " + td); :};
+declaration ::= id_list:l COLON typeDef:td
+               {:
+                  System.out.println("Declaracion de variables tipo " + td);
+                  lyc.compiler.files.SymbolTableGenerator.getInstance().addIdentifiers(l, (String) td);
+               :};
 
+id_list ::= id_list:l COMMA IDENTIFIER:id
+           {:
+              l.add(id);
+              RESULT = l;
+              System.out.println("Variable: " + id);
+           :};
 
-id_list ::= id_list COMMA IDENTIFIER:id  {: System.out.println("Variable: " + id); :};
-id_list ::= IDENTIFIER:id  {: System.out.println("Variable: " + id); :};
+id_list ::= IDENTIFIER:id
+           {:
+              java.util.List l = new java.util.ArrayList();
+              l.add(id);
+              RESULT = l;
+              System.out.println("Variable: " + id);
+           :};
 
 assignment ::= IDENTIFIER ASSIG expression {: System.out.println("Assignment"); :};
 expression ::= expression PLUS term {: System.out.println("+"); :};
@@ -139,3 +160,12 @@ write   ::= WRITE OPEN_BRACKET TEXT CLOSE_BRACKET {: System.out.println("WRITE")
 arg_list ::= triangle SEMICOLON triangle {: System.out.println("Funcion triangle - params"); :};
 triangle ::= OPEN_SQUARE coords SEMICOLON coords SEMICOLON coords CLOSE_SQUARE {: System.out.println("Funcion triangle - coord triangulo"); :};
 coords ::= expression COMMA expression {: System.out.println("Funcion triangle - valores"); :};
+
+/* while ( condition ) { sentence_list } */
+while_stmt ::= WHILE OPEN_BRACKET condition CLOSE_BRACKET
+               OPEN_BRACE sentence_list CLOSE_BRACE
+               {: System.out.println("REGLA -- while"); :};
+
+/* condición booleana: isZero(expr) */
+condition  ::= IS_ZERO OPEN_BRACKET expression CLOSE_BRACKET
+               {: System.out.println("REGLA -- condicion <-- isZero(expr)"); :};

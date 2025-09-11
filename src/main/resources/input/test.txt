@@ -2,6 +2,7 @@ init {
     varFloat1, varFloat2, varFloat3 : Float
     varInt1, varInt2 : Int
     varStr1 : String
+    s, h, contador : Int
 }
 
 varInt1 := 130814
@@ -46,4 +47,27 @@ if (NOT a > b)
 if (a > b OR c > b)
 {
     write("a es mas grande que b o c es mas grande que b")
+}
+
+a := 1 
+b := 3 
+while (a > b) 
+{ 
+    write("a es mas grande que b") 
+    a := a + 1 
+}
+
+s := 3
+h := 44
+contador := 10
+
+while (isZero( contador - 10 ))
+{
+    write("El contador vale 10")
+    contador := contador - 1
+}
+
+if (isZero( s*7+1-h/2 ))
+{
+    write("La expresion es igual a cero")
 }

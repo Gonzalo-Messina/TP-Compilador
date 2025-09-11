@@ -91,7 +91,8 @@ TypeFloat        = "Float"
 TypeString       = "String"
 
 Init             = "init"
-
+While            = "while"
+IsZero           = "isZero"
 
 %%
 /* keywords */
@@ -109,7 +110,8 @@ Init             = "init"
  {And}	          {	return symbol(ParserSym.AND,yytext()); }
  {Or}	          {	return symbol(ParserSym.OR,yytext());  }
  {Not}            { return symbol(ParserSym.NOT,yytext()); }
-
+ {While}          { return symbol(ParserSym.WHILE); }
+ {IsZero}         { return symbol(ParserSym.IS_ZERO); }
 
  /* IDENTIFICADOR */
  {Identifier}     { return symbol(ParserSym.IDENTIFIER, yytext()); }
@@ -129,7 +131,7 @@ Init             = "init"
   "#+" { yybegin(COMMENT); }
 
   /* COMENTARIO EN UNA LINEA */
-  "#" [^\n]* { /* Ignore single-line comment */ }
+  "#" {InputCharacter}* { /* Ignore single-line comment */ }
 
  /* OPERADORES ARITMÉTICOS Y DE ASIGNACIÓN */
  {Plus}           { return symbol(ParserSym.PLUS); }
@@ -166,13 +168,8 @@ Init             = "init"
 
 /* COMENTARIO MULTI-LINEA */
 <COMMENT> {
-  [^#\n]+ { /* ignore content */ }
-  "#" { /* ignore standalone '#' inside comment */ }
-  "\"" { /* ignore regular double quotes inside comment */ }
-  "“" { /* ignore opening curly quotes inside comment */ }
-  "”" { /* ignore closing curly quotes inside comment */ }
-  \n { /* ignore newlines inside comment */ }
   "+#" { yybegin(YYINITIAL); /* End of multi-line comment */ }
+  [^]  { /* ignore any char inside multi-line comment */ }
 }
 
 /* ========================================================================== */
