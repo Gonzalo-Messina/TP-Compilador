@@ -40,6 +40,7 @@ terminal OPEN_SQUARE;
 terminal CLOSE_SQUARE;
 terminal SEMICOLON;
 terminal IF;
+terminal ELSE;
 terminal WHILE;
 terminal IS_ZERO;
 
@@ -87,6 +88,7 @@ sentence ::= if_statement {: System.out.println("Sentence = IF"); :};
 sentence ::= while_stmt {: System.out.println("Sentence = WHILE"); :};
 
 if_statement ::= IF OPEN_BRACKET condition CLOSE_BRACKET OPEN_BRACE sentence_list CLOSE_BRACE {: System.out.println("IF"); :};
+if_statement ::= IF OPEN_BRACKET condition CLOSE_BRACKET OPEN_BRACE sentence_list CLOSE_BRACE ELSE OPEN_BRACE sentence_list CLOSE_BRACE {: System.out.println("IF-ELSE"); :};
 
 condition ::= simple_condition {: System.out.println("Condición test"); :};
 condition ::= simple_condition AND simple_condition {: System.out.println("Condición AND"); :};

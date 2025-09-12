@@ -83,6 +83,7 @@ Read = "read"
 Write = "write"
 
 If = "if"
+Else = "else"
 
 /*Data Types */
 
@@ -107,6 +108,7 @@ IsZero           = "isZero"
  {TypeFloat}      { return symbol(ParserSym.TYPE_FLOAT); }
  {TypeString}     { return symbol(ParserSym.TYPE_STRING); }
  {If}             { return symbol(ParserSym.IF); }
+ {Else}           { return symbol(ParserSym.ELSE); }
  {And}	          {	return symbol(ParserSym.AND,yytext()); }
  {Or}	          {	return symbol(ParserSym.OR,yytext());  }
  {Not}            { return symbol(ParserSym.NOT,yytext()); }

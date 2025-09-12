@@ -49,6 +49,15 @@ if (a > b OR c > b)
     write("a es mas grande que b o c es mas grande que b")
 }
 
+if (a > b)
+{
+    write("a es mas grande que b")
+}
+else
+{
+    write("a es mas chico o igual a b")
+}
+
 a := 1 
 b := 3 
 while (a > b) 
