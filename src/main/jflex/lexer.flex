@@ -77,7 +77,7 @@ WhiteSpace = {LineTerminator} | {Identation}
 Identifier = {Letter} ({Letter}|{Digit})*
 IntegerConstant = {Digit}+
 FloatConstant    = {Digit}+"."{Digit}*|("."{Digit}+)
-Text =	[\"].*[\"]
+Text = (\"([^\"\\]|\\.)*\") | (\“([^\“\\]|\\.)*\”)
 
 Read = "read"
 Write = "write"

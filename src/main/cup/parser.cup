@@ -147,6 +147,8 @@ term ::= factor {: System.out.println("Term = factor"); :};
 factor ::= IDENTIFIER:id  {: System.out.println("Id: " + id); :};
 factor ::= INTEGER_CONSTANT:constant {: System.out.println("Constant: " + constant ); :};
 factor ::= FLOAT_CONSTANT:constant   {: System.out.println("Float: " + constant ); :};      // NUEVO
+factor ::= TEXT:constant              {: System.out.println("String: " + constant);:};
+
 factor ::= OPEN_BRACKET expression CLOSE_BRACKET {: System.out.println("Factor = (Expression)"); :};
 factor ::= IDENTIFIER OPEN_BRACKET arg_list CLOSE_BRACKET {: System.out.println("Funcion triangle - metodo"); :};
 factor ::= AND;

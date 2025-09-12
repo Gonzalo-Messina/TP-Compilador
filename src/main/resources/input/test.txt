@@ -21,6 +21,10 @@ varFloat2 := varInt1 + 500
 varFloat2 := 34 * 3
 varFloat2 := varInt1 / varInt2
 
+varStr1 := "@sdADaSjfla%dfg"
+varStr1 := "asldk  fh sjf"
+
+
 #+ Esto es un comentario +#
 
 read(test)
