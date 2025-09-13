@@ -23,6 +23,48 @@ varFloat1 := -.9999
 
 varStr1 := "aaaaaaaa"
 
+varInt2 := 4
+varFloat2 := varFloat1 * (varInt1 - 21) / 4
+varFloat3 := 1
+varFloat2 := 27 - varFloat3
+varFloat2 := varInt1 + 500
+varFloat2 := 34 * 3
+varFloat2 := varInt1 / varInt2
+varStr1 := "@sdADaSjfla%dfg"
+varStr1 := "asldk  fh sjf"
+
+#+ Comentario de prueba +#
+
+read(test)
+write(test)
+write("test")
+write("a es mas grande que b o c es mas grande que b")
+
+if (a > b)
+{
+    write("a es mas grande que b")
+}
+else
+{
+    write("a es mas chico o igual a b")
+}
+
+
+a := 1
+b := 1
+c := 2
+
+if (a > b AND c > b)
+{
+    write("a es mas grande que b y c es mas grande que b")
+}
+
+if (NOT a > b)
+{
+    write("a no es mas grande que b")
+}
+
+if (a > b OR c > b)
 {
     write("a es mas grande que b o c es mas grande que b")
 }
@@ -34,6 +76,11 @@ if (a > b)
 else
 {
     write("a es mas chico o igual a b")
+}
+
+if (varFloat1 <= varFloat2 AND varInt1 >= varInt2) 
+{
+    write("Condición compuesta AND")
 }
 
 a := 1 
@@ -65,3 +112,18 @@ if (isZero( s*7+1-h/2 ))
 
 #+ varStr1 := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" +#
 
+
+#+ Asignaciones inválidas +#
+#+varInt1 = 5     +#
+#+varFloat1 : 3.5 +#
+
+
+
+#+ Literales mal formateados +#
+#+ varFloat1 := 1.2.3 +#
+#+ varInt1 := 0129 +#
+#+ varStr1 := "@cadena sin cerrar +#
+
+#+ Operadores inválidos +#
+#+ varInt1 <> 2 +#
+#+ varInt2 ** 2 +#
