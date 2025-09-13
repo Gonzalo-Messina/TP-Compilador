@@ -145,7 +145,7 @@ term ::= term DIV factor {: System.out.println("/"); :};
 term ::= factor {: System.out.println("Term = factor"); :};
 
 factor ::= IDENTIFIER:id  {: System.out.println("Id: " + id); :};
-factor ::= INTEGER_CONSTANT:constant {: System.out.println("Constant: " + constant ); :};
+factor ::= INTEGER_CONSTANT:constant {: System.out.println("Integer: " + constant ); :};
 factor ::= FLOAT_CONSTANT:constant   {: System.out.println("Float: " + constant ); :};      // NUEVO
 factor ::= TEXT:constant              {: System.out.println("String: " + constant);:};
 

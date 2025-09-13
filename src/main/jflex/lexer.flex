@@ -35,7 +35,7 @@ import lyc.compiler.files.SymbolTableGenerator;
   	  	SymbolTableGenerator.getInstance().addToken(yytext(),dataType);
   }
   private boolean isValidStringLength() {
-  	return yylength() <= Constants.MAX_STRING_LITERAL_LENGTH;
+  	return yylength() <= 52;
   }
 %}
 
@@ -75,8 +75,8 @@ Semicolon = ";"
 
 WhiteSpace = {LineTerminator} | {Identation}
 Identifier = {Letter} ({Letter}|{Digit})*
-IntegerConstant = {Digit}+
-FloatConstant    = {Digit}+"."{Digit}*|("."{Digit}+)
+IntegerConstant = -? {Digit}+
+FloatConstant    = -? ({Digit}+"."{Digit}*|("."{Digit}+))
 Text = (\"([^\"\\]|\\.)*\") | (\“([^\“\\]|\\.)*\”)
 
 Read = "read"
@@ -124,7 +124,7 @@ IsZero           = "isZero"
  {FloatConstant}   { saveTokenCTE("Float"); return symbol(ParserSym.FLOAT_CONSTANT, yytext()); }
  {Text}            {
                      if(!isValidStringLength())
-                       throw new InvalidLengthException("\"" + yytext() + "\""+ " string length not allowed");
+                       throw new InvalidLengthException("\"" + yytext() + "\""+ " string length not allowed (max 50)");
                      saveTokenCTE("string");
                      return symbol(ParserSym.TEXT, yytext());
                    }
