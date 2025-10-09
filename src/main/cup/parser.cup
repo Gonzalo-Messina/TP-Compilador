@@ -1,6 +1,7 @@
 package lyc.compiler;
 
 import java_cup.runtime.*;
+import lyc.compiler.ParserSym; 
 
 class Parser;
 
@@ -43,6 +44,7 @@ terminal IF;
 terminal ELSE;
 terminal WHILE;
 terminal IS_ZERO;
+terminal TRIANGLE_AREA_MAXIMUM;
 
 // Non Terminals
 non terminal program;
@@ -102,6 +104,7 @@ simple_condition ::= expression LE expression {: System.out.println("<="); :};
 simple_condition ::= expression EQ expression {: System.out.println("="); :};
 
 
+
 // NUEVO: tipos de datos
 typeDef ::= TYPE_INT    {: RESULT = "Int"; :};
 typeDef ::= TYPE_FLOAT  {: RESULT = "Float"; :};
@@ -146,14 +149,11 @@ term ::= factor {: System.out.println("Term = factor"); :};
 
 factor ::= IDENTIFIER:id  {: System.out.println("Id: " + id); :};
 factor ::= INTEGER_CONSTANT:constant {: System.out.println("Integer: " + constant ); :};
-factor ::= FLOAT_CONSTANT:constant   {: System.out.println("Float: " + constant ); :};      // NUEVO
+factor ::= FLOAT_CONSTANT:constant   {: System.out.println("Float: " + constant ); :};      
 factor ::= TEXT:constant              {: System.out.println("String: " + constant);:};
 
 factor ::= OPEN_BRACKET expression CLOSE_BRACKET {: System.out.println("Factor = (Expression)"); :};
-factor ::= IDENTIFIER OPEN_BRACKET arg_list CLOSE_BRACKET {: System.out.println("Funcion triangle - metodo"); :};
-factor ::= AND;
-factor ::= OR;
-factor ::= NOT;
+factor ::= TRIANGLE_AREA_MAXIMUM OPEN_BRACKET arg_list CLOSE_BRACKET {: System.out.println("Funcion triangle - metodo"); :};
 
 
 read    ::= READ OPEN_BRACKET IDENTIFIER CLOSE_BRACKET {: System.out.println("READ"); :};
@@ -171,5 +171,4 @@ while_stmt ::= WHILE OPEN_BRACKET condition CLOSE_BRACKET
                {: System.out.println("REGLA -- while"); :};
 
 /* condición booleana: isZero(expr) */
-condition  ::= IS_ZERO OPEN_BRACKET expression CLOSE_BRACKET
-               {: System.out.println("REGLA -- condicion <-- isZero(expr)"); :};
+condition  ::= IS_ZERO OPEN_BRACKET expression CLOSE_BRACKET {: System.out.println("REGLA -- condicion <-- isZero(expr)"); :};

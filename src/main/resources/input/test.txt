@@ -1,8 +1,8 @@
 #+ Declaracion de variables en bloque Init +#
 
 init {
-    varFloat1, varFloat2, varFloat3 : Float
-    varInt1, varInt2 : Int
+    areaMax, x, varFloat1, varFloat2, varFloat3 : Float
+    z, varInt1, varInt2 : Int
     varStr1 : String
     s, h, contador : Int
 }
@@ -127,3 +127,8 @@ if (isZero( s*7+1-h/2 ))
 #+ Operadores inválidos +#
 #+ varInt1 <> 2 +#
 #+ varInt2 ** 2 +#
+
+
+z := 2
+x := 3.8
+areaMax := triangleAreaMaximum( [0,x; 4.0,12; 2.5,3] ; [x,0; 6,0; z,2] ) 

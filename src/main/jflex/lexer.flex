@@ -94,6 +94,7 @@ TypeString       = "String"
 Init             = "init"
 While            = "while"
 IsZero           = "isZero"
+triangleAreaMaximum = "triangleAreaMaximum"
 
 %%
 /* keywords */
@@ -110,10 +111,11 @@ IsZero           = "isZero"
  {If}             { return symbol(ParserSym.IF); }
  {Else}           { return symbol(ParserSym.ELSE); }
  {And}	          {	return symbol(ParserSym.AND,yytext()); }
- {Or}	          {	return symbol(ParserSym.OR,yytext());  }
+ {Or}	            { return symbol(ParserSym.OR,yytext());  }
  {Not}            { return symbol(ParserSym.NOT,yytext()); }
  {While}          { return symbol(ParserSym.WHILE); }
  {IsZero}         { return symbol(ParserSym.IS_ZERO); }
+ {triangleAreaMaximum} { return symbol(ParserSym.TRIANGLE_AREA_MAXIMUM); }
 
  /* IDENTIFICADOR */
  {Identifier}     { return symbol(ParserSym.IDENTIFIER, yytext()); }
