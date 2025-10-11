@@ -32,10 +32,10 @@ import lyc.compiler.files.SymbolTableGenerator;
   	SymbolTableGenerator.getInstance().addToken(yytext());
   }
   private void saveTokenCTE(String dataType){
-  	  	SymbolTableGenerator.getInstance().addToken(yytext(),dataType);
+  	SymbolTableGenerator.getInstance().addToken(yytext(),dataType);
   }
   private boolean isValidStringLength() {
-  	return yylength() <= 52;
+  	return yylength() <= Constants.MAX_STRING_LITERAL_LENGTH;
   }
 %}
 
@@ -57,6 +57,7 @@ Le = "<="
 And = "AND"
 Or = "OR"
 Not = "NOT"
+Else = "else"
 
 OpenBracket = "("
 CloseBracket = ")"
@@ -75,28 +76,28 @@ Semicolon = ";"
 
 WhiteSpace = {LineTerminator} | {Identation}
 Identifier = {Letter} ({Letter}|{Digit})*
-IntegerConstant = -? {Digit}+
-FloatConstant    = -? ({Digit}+"."{Digit}*|("."{Digit}+))
-Text = (\"([^\"\\]|\\.)*\") | (\“([^\“\\]|\\.)*\”)
+IntegerConstant = {Digit}+
+FloatConstant    = {Digit}+"."{Digit}*|("."{Digit}+)
+Text =	[\"].*[\"]
 
 Read = "read"
 Write = "write"
-
 If = "if"
-Else = "else"
+While = "while"
+IsZero = "isZero"
 
-/*Data Types */
+/* Nueva palabra reservada: función del sistema */
+TriangleAreaMaximum = "triangleAreaMaximum"
 
+/* Data Types */
 TypeInt          = "Int"
 TypeFloat        = "Float"
 TypeString       = "String"
 
 Init             = "init"
-While            = "while"
-IsZero           = "isZero"
-triangleAreaMaximum = "triangleAreaMaximum"
 
 %%
+
 /* keywords */
 
 <YYINITIAL> {
@@ -111,22 +112,52 @@ triangleAreaMaximum = "triangleAreaMaximum"
  {If}             { return symbol(ParserSym.IF); }
  {Else}           { return symbol(ParserSym.ELSE); }
  {And}	          {	return symbol(ParserSym.AND,yytext()); }
- {Or}	            { return symbol(ParserSym.OR,yytext());  }
+ {Or}	          {	return symbol(ParserSym.OR,yytext());  }
  {Not}            { return symbol(ParserSym.NOT,yytext()); }
  {While}          { return symbol(ParserSym.WHILE); }
  {IsZero}         { return symbol(ParserSym.IS_ZERO); }
- {triangleAreaMaximum} { return symbol(ParserSym.TRIANGLE_AREA_MAXIMUM); }
+ {TriangleAreaMaximum} { return symbol(ParserSym.TRIANGLE_AREA_MAX); }  /* NUEVO */
 
  /* IDENTIFICADOR */
  {Identifier}     { return symbol(ParserSym.IDENTIFIER, yytext()); }
 
-
  /* CONSTANTES Y LITERALES */
- {IntegerConstant} { saveTokenCTE("Int"); return symbol(ParserSym.INTEGER_CONSTANT, yytext()); }
- {FloatConstant}   { saveTokenCTE("Float"); return symbol(ParserSym.FLOAT_CONSTANT, yytext()); }
+
+ /* INT con validación de cotas */
+ {IntegerConstant} {
+    try {
+        long v = Long.parseLong(yytext());
+        if (v < Constants.INT_MIN || v > Constants.INT_MAX) {
+            throw new NumberOutOfRangeException("Integer constant out of bounds: " + yytext()
+              + " (allowed " + Constants.INT_MIN + ".." + Constants.INT_MAX + ")");
+        }
+    } catch (NumberFormatException nfe) {
+        throw new InvalidNumericConstantException("Invalid integer constant: " + yytext());
+    }
+    saveTokenCTE("Int");
+    return symbol(ParserSym.INTEGER_CONSTANT, yytext());
+ }
+
+ /* FLOAT con validación de cotas (|x| <= FLOAT_ABS_MAX) */
+ {FloatConstant} {
+    try {
+        java.math.BigDecimal v = new java.math.BigDecimal(yytext().replace("+",""));
+        if (v.abs().compareTo(Constants.FLOAT_ABS_MAX) > 0) {
+            throw new NumberOutOfRangeException("Float constant out of bounds: " + yytext()
+              + " (|x| <= " + Constants.FLOAT_ABS_MAX.toPlainString() + ")");
+        }
+    } catch (NumberFormatException | java.lang.ArithmeticException ex) {
+        throw new InvalidNumericConstantException("Invalid float constant: " + yytext());
+    }
+    saveTokenCTE("Float");
+    return symbol(ParserSym.FLOAT_CONSTANT, yytext());
+ }
+
+
+ /* STRING (valida longitud) */
  {Text}            {
                      if(!isValidStringLength())
-                       throw new InvalidLengthException("\"" + yytext() + "\""+ " string length not allowed (max 50)");
+                       throw new InvalidLengthException("\"" + yytext() + "\""+ " string length not allowed");
                      saveTokenCTE("string");
                      return symbol(ParserSym.TEXT, yytext());
                    }
@@ -134,7 +165,7 @@ triangleAreaMaximum = "triangleAreaMaximum"
 /* EMPEZAR COMENTARIO MULTI-LINEA */
   "#+" { yybegin(COMMENT); }
 
-  /* COMENTARIO EN UNA LINEA */
+  /* COMENTARIO EN UNA LINEA — usa la macro InputCharacter para evitar warning */
   "#" {InputCharacter}* { /* Ignore single-line comment */ }
 
  /* OPERADORES ARITMÉTICOS Y DE ASIGNACIÓN */
@@ -143,7 +174,6 @@ triangleAreaMaximum = "triangleAreaMaximum"
  {Mult}           { return symbol(ParserSym.MULT); }
  {Div}            { return symbol(ParserSym.DIV); }
  {Assig}          { return symbol(ParserSym.ASSIG); }
-
 
  /* OPERADORES RELACIONALES */
  {Eq}             { return symbol(ParserSym.EQ); }
@@ -163,14 +193,12 @@ triangleAreaMaximum = "triangleAreaMaximum"
  {CloseSquare}    { return symbol(ParserSym.CLOSE_SQUARE); }
  {Semicolon}      { return symbol(ParserSym.SEMICOLON); }
 
-
-
  /* ESPACIOS EN BLANCO (IGNORAR) */
  {WhiteSpace}     { /* ignore */ }
 
 }
 
-/* COMENTARIO MULTI-LINEA */
+/* COMENTARIO MULTI-LINEA — versión simple y sin warnings */
 <COMMENT> {
   "+#" { yybegin(YYINITIAL); /* End of multi-line comment */ }
   [^]  { /* ignore any char inside multi-line comment */ }

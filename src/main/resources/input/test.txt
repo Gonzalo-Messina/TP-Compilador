@@ -128,6 +128,14 @@ if (isZero( s*7+1-h/2 ))
 #+ varInt1 <> 2 +#
 #+ varInt2 ** 2 +#
 
+#+ Validación de cotas para enteros +#
+#+ varInt1 := 2147483648     +#  // Error: Integer constant out of bounds (must be between -2147483648 and 2147483647)
+#+ varInt1 := -2147483649    +#  // Error: Integer constant out of bounds (must be between -2147483648 and 2147483647)
+
+#+ Validación de cotas para flotantes +#
+#+ varFloat1 := 3.5E39       +#  // Error: Float constant out of bounds (must be between -3.4028235E38 and 3.4028235E38)
+#+ varFloat1 := -3.5E39      +#  // Error: Float constant out of bounds (must be between -3.4028235E38 and 3.4028235E38)
+
 
 z := 2
 x := 3.8
