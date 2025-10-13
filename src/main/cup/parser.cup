@@ -1,9 +1,10 @@
 package lyc.compiler;
 
 import java_cup.runtime.*;
+import lyc.compiler.ParserSym; 
+import lyc.compiler.files.IntermediateCodeGenerator;
 
 class Parser;
-
 
 // Terminals
 terminal INIT;
@@ -62,19 +63,21 @@ non terminal declaration;
 non terminal java.util.List id_list;
 non terminal typeDef;
 
+
 //Funcion triangle
 non terminal arg_list;
 non terminal triangle;
 non terminal coords;
 
-//While / isZero
-non terminal while_stmt;
+//Funcion IsZero
+non terminal while_statement;
 
 non terminal if_statement;
 non terminal condition;
 non terminal simple_condition;
 
-// Start Symbol Definition
+// --- REGLAS DE LA GRAMÁTICA ---
+
 start with program;
 
 program ::= init_block sentence_list | init_block;
@@ -84,44 +87,159 @@ sentence_list ::= sentence_list sentence | sentence;
 sentence ::= assignment {: System.out.println("Assignment"); :};
 sentence ::= read {: System.out.println("Sentence = READ"); :};
 sentence ::= write {: System.out.println("Sentence = WRITE"); :};
-sentence ::= COMMENT {: System.out.println("comentario"); :};
 sentence ::= if_statement {: System.out.println("Sentence = IF"); :};
-sentence ::= while_stmt {: System.out.println("Sentence = WHILE"); :};
+sentence ::= while_statement {: System.out.println("Sentence = WHILE"); :};
+sentence ::= COMMENT {: System.out.println("comentario"); :};
 
-/* IF con y sin ELSE */
-if_statement ::= IF OPEN_BRACKET condition CLOSE_BRACKET
-                 OPEN_BRACE sentence_list CLOSE_BRACE
-                 {: System.out.println("IF"); :};
+// --- ESTRUCTURAS DE CONTROL ---
 
-if_statement ::= IF OPEN_BRACKET condition CLOSE_BRACKET
-                 OPEN_BRACE sentence_list CLOSE_BRACE
-                 ELSE
-                 OPEN_BRACE sentence_list CLOSE_BRACE
-                 {: System.out.println("IF ... ELSE"); :};
+if_statement ::= IF OPEN_BRACKET condition CLOSE_BRACKET OPEN_BRACE sentence_list CLOSE_BRACE 
+               {: 
+                  System.out.println("IF"); 
+                  // 1. Creamos una etiqueta única para el final del IF.
+                  String fin_if = IntermediateCodeGenerator.getInstance().newLabel();
+
+                  // 2. Generamos el salto condicional. El código de la condición ya fue generado.
+                  IntermediateCodeGenerator.getInstance().addToken(fin_if);
+                  IntermediateCodeGenerator.getInstance().addToken("JZ");
+
+                  // 3. El código del "sentence_list" se genera automáticamente al procesarse.
+
+                  // 4. Generamos la etiqueta de destino al final.
+                  IntermediateCodeGenerator.getInstance().addToken(fin_if + ":");
+               :};
+
+if_statement ::= IF OPEN_BRACKET condition CLOSE_BRACKET OPEN_BRACE sentence_list:then_part CLOSE_BRACE ELSE OPEN_BRACE sentence_list:else_part CLOSE_BRACE 
+               {: 
+                  System.out.println("IF-ELSE"); 
+                  // 1. Creamos dos etiquetas: una para el ELSE y otra para el FIN.
+                  String sino_label = IntermediateCodeGenerator.getInstance().newLabel();
+                  String fin_if = IntermediateCodeGenerator.getInstance().newLabel();
+
+                  // 2. Generamos el salto condicional al bloque ELSE si la condición es falsa.
+                  IntermediateCodeGenerator.getInstance().addToken(sino_label);
+                  IntermediateCodeGenerator.getInstance().addToken("JZ");
+
+                  // 3. El código de "then_part" se genera aquí.
+
+                  // 4. Generamos el salto incondicional para omitir el ELSE.
+                  IntermediateCodeGenerator.getInstance().addToken(fin_if);
+                  IntermediateCodeGenerator.getInstance().addToken("JMP");
+
+                  // 5. Generamos la etiqueta de inicio del bloque ELSE.
+                  IntermediateCodeGenerator.getInstance().addToken(sino_label + ":");
+
+                  // 6. El código de "else_part" se genera aquí.
+
+                  // 7. Generamos la etiqueta final.
+                  IntermediateCodeGenerator.getInstance().addToken(fin_if + ":");
+
+               :};
+
+/* while ( condition ) { sentence_list } */
+while_statement ::= WHILE OPEN_BRACKET condition:c CLOSE_BRACKET OPEN_BRACE sentence_list:body CLOSE_BRACE
+            {: 
+            System.out.println("REGLA -- while"); 
+            
+            String inicio = IntermediateCodeGenerator.getInstance().newLabel();
+            String fin = IntermediateCodeGenerator.getInstance().newLabel();
+            
+            // Etiqueta de inicio del bucle
+            IntermediateCodeGenerator.getInstance().addToken(inicio + ":");
+
+            // Código de la condición
+            // Salto al fin si es falsa
+            IntermediateCodeGenerator.getInstance().addToken(fin);
+            IntermediateCodeGenerator.getInstance().addToken("JZ");
+
+            // Código del cuerpo del bucle
+            // Salto incondicional al inicio para repetir
+            IntermediateCodeGenerator.getInstance().addToken(inicio);
+            IntermediateCodeGenerator.getInstance().addToken("JMP");
+                    
+            // Etiqueta de fin
+            IntermediateCodeGenerator.getInstance().addToken(fin + ":");
+
+            :};
+
+
+// --- CONDICIONES ---
 
 condition ::= simple_condition {: System.out.println("Condición test"); :};
-condition ::= simple_condition AND simple_condition {: System.out.println("Condición AND"); :};
-condition ::= simple_condition OR  simple_condition {: System.out.println("Condición OR"); :};
-condition ::= NOT simple_condition                  {: System.out.println("Condición NOT"); :};
 
-simple_condition ::= expression GT expression {: System.out.println(">"); :};
-simple_condition ::= expression LT expression {: System.out.println("<"); :};
-simple_condition ::= expression GE expression {: System.out.println(">="); :};
-simple_condition ::= expression LE expression {: System.out.println("<="); :};
-simple_condition ::= expression EQ expression {: System.out.println("="); :};
+condition ::= condition AND simple_condition 
+            {: 
+            System.out.println("Condicion AND"); 
+            IntermediateCodeGenerator.getInstance().addToken("AND");
+            :};
+
+condition ::= condition OR simple_condition  
+            {: 
+            System.out.println("Condicion OR");
+            IntermediateCodeGenerator.getInstance().addToken("OR");
+            :};
+
+condition ::= NOT simple_condition                  
+            {: 
+            System.out.println("Condición NOT"); 
+            IntermediateCodeGenerator.getInstance().addToken("NOT");
+            :};
 
 
-// Tipos de datos
+simple_condition ::= expression GT expression 
+                  {: 
+                  System.out.println(">"); 
+                  IntermediateCodeGenerator.getInstance().addToken(">");
+                  :};
+
+simple_condition ::= expression LT expression 
+                  {: 
+                  System.out.println("<"); 
+                  IntermediateCodeGenerator.getInstance().addToken("<");
+                  :};
+
+simple_condition ::= expression GE expression 
+                  {: 
+                  System.out.println(">="); 
+                  IntermediateCodeGenerator.getInstance().addToken(">=");
+                  :};
+
+simple_condition ::= expression LE expression 
+                  {: 
+                  System.out.println("<="); 
+                  IntermediateCodeGenerator.getInstance().addToken("<=");
+                  :};
+
+simple_condition ::= expression EQ expression 
+                  {: 
+                  System.out.println("="); 
+                  IntermediateCodeGenerator.getInstance().addToken("=");
+                  :};
+
+simple_condition ::= IS_ZERO OPEN_BRACKET expression CLOSE_BRACKET
+                  {: 
+                  System.out.println("IS_ZERO_CONDITION");
+                  IntermediateCodeGenerator.getInstance().addToken("IS_ZERO"); 
+                  :};
+
+
+
+
+// --- TIPOS DE DATOS ---
+
 typeDef ::= TYPE_INT    {: RESULT = "Int"; :};
 typeDef ::= TYPE_FLOAT  {: RESULT = "Float"; :};
 typeDef ::= TYPE_STRING {: RESULT = "String"; :};
           
+
+// --- DECLARACIONES (No generan código intermedio) ---          
+
 init_block ::= INIT OPEN_BRACE decl_list CLOSE_BRACE {: System.out.println("Init block cerrado"); :};
 
 decl_list ::= decl_list declaration;
 decl_list ::= declaration;
 
-// Declaración con lista de ids
+// NUEVO: una declaración puede tener varias variables separadas por coma
 declaration ::= id_list:l COLON typeDef:td
                {:
                   System.out.println("Declaracion de variables tipo " + td);
@@ -130,59 +248,121 @@ declaration ::= id_list:l COLON typeDef:td
 
 id_list ::= id_list:l COMMA IDENTIFIER:id
            {:
-              l.add(id); RESULT = l;
+              l.add(id);
+              RESULT = l;
               System.out.println("Variable: " + id);
            :};
 
 id_list ::= IDENTIFIER:id
            {:
               java.util.List l = new java.util.ArrayList();
-              l.add(id); RESULT = l;
+              l.add(id);
+              RESULT = l;
               System.out.println("Variable: " + id);
            :};
 
-assignment ::= IDENTIFIER ASSIG expression {: System.out.println("Assignment"); :};
 
-expression ::= expression PLUS term {: System.out.println("+"); :};
-expression ::= expression SUB  term {: System.out.println("-"); :};
+// --- ASIGNACIÓN Y EXPRESIONES ARITMÉTICAS ---
+
+assignment ::= IDENTIFIER:id ASSIG expression 
+            {: 
+            System.out.println("Assignment");
+            IntermediateCodeGenerator.getInstance().addToken(id);
+            IntermediateCodeGenerator.getInstance().addToken(":="); 
+            :};
+
+expression ::= expression PLUS term
+            {: 
+            System.out.println("+");
+            IntermediateCodeGenerator.getInstance().addToken("+");
+            :};
+expression ::= expression SUB term
+            {: 
+            System.out.println("-"); 
+            IntermediateCodeGenerator.getInstance().addToken("-");
+            :};
+
 expression ::= term {: System.out.println("Expression = Term"); :};
 
-term ::= term MULT factor {: System.out.println("*"); :};
-term ::= term DIV  factor {: System.out.println("/"); :};
+term ::= term MULT factor 
+      {: 
+      System.out.println("*"); 
+      IntermediateCodeGenerator.getInstance().addToken("*");
+      :};
+
+term ::= term DIV factor 
+      {: 
+      System.out.println("/"); 
+      IntermediateCodeGenerator.getInstance().addToken("/");
+      :};
+
 term ::= factor {: System.out.println("Term = factor"); :};
 
-/* FACTORES */
-factor ::= IDENTIFIER:id  {: System.out.println("Id: " + id); :};
-factor ::= INTEGER_CONSTANT:constant {: System.out.println("Constant: " + constant ); :};
-factor ::= FLOAT_CONSTANT:constant   {: System.out.println("Float: " + constant ); :};
-factor ::= TEXT:txt                  {: System.out.println("Text: " + txt ); :};
+factor ::= IDENTIFIER:id  
+         {: 
+         System.out.println("Id: " + id); 
+         IntermediateCodeGenerator.getInstance().addToken(id);
+         :};
+factor ::= INTEGER_CONSTANT:int_const
+         {: 
+         System.out.println("Integer: " + int_const ); 
+         IntermediateCodeGenerator.getInstance().addToken(int_const);
+         :};
+
+factor ::= FLOAT_CONSTANT:float_const
+         {: 
+         System.out.println("Float: " + float_const ); 
+         IntermediateCodeGenerator.getInstance().addToken(float_const);
+         :};      
+
+factor ::= TEXT:string_const              
+         {: 
+         System.out.println("String: " + string_const);
+         IntermediateCodeGenerator.getInstance().addToken(string_const);
+         :};
+
 factor ::= OPEN_BRACKET expression CLOSE_BRACKET {: System.out.println("Factor = (Expression)"); :};
+factor ::= TRIANGLE_AREA_MAX OPEN_BRACKET arg_list CLOSE_BRACKET 
+         {: 
+         System.out.println("Funcion triangle - metodo"); 
+         IntermediateCodeGenerator.getInstance().addToken("triangleAreaMaximum");
+         :};
 
-/* llamada genérica: id(expr...) */
-factor ::= IDENTIFIER OPEN_BRACKET arg_list CLOSE_BRACKET {: System.out.println("Funcion triangle - metodo"); :};
-
-/* llamada al sistema: triangleAreaMaximum([...]; [...]) */
-factor ::= TRIANGLE_AREA_MAX OPEN_BRACKET arg_list CLOSE_BRACKET
-         {: System.out.println("Funcion triangleAreaMaximum"); :};
-
-/* NUEVO: unario + y - */
+/* NUEVO: unarios (para -n, +n, etc.) */
 factor ::= PLUS factor {: System.out.println("unario +"); :};
 factor ::= SUB  factor {: System.out.println("unario -"); :};
 
-read    ::= READ  OPEN_BRACKET IDENTIFIER CLOSE_BRACKET {: System.out.println("READ"); :};
-write   ::= WRITE OPEN_BRACKET IDENTIFIER CLOSE_BRACKET {: System.out.println("WRITE"); :};
-write   ::= WRITE OPEN_BRACKET TEXT        CLOSE_BRACKET {: System.out.println("WRITE"); :};
+
+read    ::= READ OPEN_BRACKET IDENTIFIER:id CLOSE_BRACKET 
+         {: 
+         System.out.println("READ"); 
+         IntermediateCodeGenerator.getInstance().addToken(id); 
+         IntermediateCodeGenerator.getInstance().addToken("READ");
+         :};
+
+write   ::= WRITE OPEN_BRACKET IDENTIFIER:id CLOSE_BRACKET 
+         {: 
+         System.out.println("WRITE"); 
+         IntermediateCodeGenerator.getInstance().addToken(id); 
+         IntermediateCodeGenerator.getInstance().addToken("WRITE");
+         :};
+
+write   ::= WRITE OPEN_BRACKET TEXT:text CLOSE_BRACKET 
+         {: 
+         System.out.println("WRITE"); 
+         IntermediateCodeGenerator.getInstance().addToken(text);
+         IntermediateCodeGenerator.getInstance().addToken("WRITE");
+         :};
 
 //Funcion triangle
 arg_list ::= triangle SEMICOLON triangle {: System.out.println("Funcion triangle - params"); :};
 triangle ::= OPEN_SQUARE coords SEMICOLON coords SEMICOLON coords CLOSE_SQUARE {: System.out.println("Funcion triangle - coord triangulo"); :};
-coords   ::= expression COMMA expression {: System.out.println("Funcion triangle - valores"); :};
+coords ::= expression COMMA expression {: System.out.println("Funcion triangle - valores"); :};
 
-/* while ( condition ) { sentence_list } */
-while_stmt ::= WHILE OPEN_BRACKET condition CLOSE_BRACKET
-               OPEN_BRACE sentence_list CLOSE_BRACE
-               {: System.out.println("REGLA -- while"); :};
 
-/* condición booleana: isZero(expr) */
-condition  ::= IS_ZERO OPEN_BRACKET expression CLOSE_BRACKET
-               {: System.out.println("REGLA -- condicion <-- isZero(expr)"); :};
+/* condición booleana: isZero(expr) 
+condition  ::= IS_ZERO OPEN_BRACKET expression CLOSE_BRACKET 
+            {: 
+            System.out.println("REGLA -- condicion <-- isZero(expr)"); 
+            IntermediateCodeGenerator.getInstance.addToken(IS_ZERO);
+            :};*/
