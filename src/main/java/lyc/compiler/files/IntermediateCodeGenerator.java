@@ -11,7 +11,7 @@ public class IntermediateCodeGenerator implements FileGenerator {
     private static IntermediateCodeGenerator instance;
 
     // Lista para almacenar la secuencia de RPN
-    private final List<Object> rpnCode;
+    private final List<String> rpnCode;
     
     // Contador para generar etiquetas únicas para los saltos (if, while, etc.)
     private int labelCounter;
@@ -34,7 +34,7 @@ public class IntermediateCodeGenerator implements FileGenerator {
      * Agrega un token (operando o operador) a la secuencia de RPN.
      * @param token El token a agregar (ej: "mi_variable", "5", "+").
      */
-    public void addToken(Object token) {
+    public void addToken(String token) {
         this.rpnCode.add(token);
     }
 
@@ -43,7 +43,9 @@ public class IntermediateCodeGenerator implements FileGenerator {
      * @return El nombre de la etiqueta (ej: "L0", "L1").
      */
     public String newLabel() {
+        System.out.println("Nueva etiqueta: L" + (labelCounter+1));
         return "L" + labelCounter++;
+
     }
 
     @Override
@@ -53,10 +55,10 @@ public class IntermediateCodeGenerator implements FileGenerator {
         fileWriter.write("------------------------------------------\n");
 
         // Itera sobre la lista de tokens RPN acumulados y los escribe en el archivo
-        for (Object token : rpnCode) {
+        for (String token : rpnCode) {
             // Escribimos cada token seguido de un espacio para que quede en una sola línea
             // o con un salto de línea para mayor claridad. Usemos salto de línea.
-            fileWriter.write( (String) token + "\n");
+            fileWriter.write( token + "\n");
         }
         
         fileWriter.write("------------------------------------------\n");
