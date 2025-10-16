@@ -105,8 +105,9 @@ if_header ::= IF OPEN_BRACKET condition:c CLOSE_BRACKET
                 String fin_if_label = IntermediateCodeGenerator.getInstance().newLabel();
 
                 // 2. Generamos el salto condicional al bloque ELSE.
+                // La condición ya generó sus tokens, solo agregamos el salto
                 IntermediateCodeGenerator.getInstance().addToken(sino_label);
-                IntermediateCodeGenerator.getInstance().addToken(c);
+                IntermediateCodeGenerator.getInstance().addToken("BF");
 
                 // 3. Devolvemos las etiquetas para que la regla principal las use.
                 RESULT = java.util.Arrays.asList(sino_label, fin_if_label);
@@ -163,10 +164,10 @@ while_header ::= while_start:inicio_label condition:c CLOSE_BRACKET
                {:
                     String fin_label = IntermediateCodeGenerator.getInstance().newLabel();
 
-                    // El código de la condición (CMP) se acaba de generar.
+                    // La condición ya generó sus tokens, solo agregamos el salto
                     // Ahora generamos el salto para salir del bucle.
                     IntermediateCodeGenerator.getInstance().addToken(fin_label);
-                    IntermediateCodeGenerator.getInstance().addToken(c);
+                    IntermediateCodeGenerator.getInstance().addToken("BF");
 
                     // Pasamos ambas etiquetas a la regla final.
                     RESULT = java.util.Arrays.asList(inicio_label, fin_label);
@@ -214,37 +215,41 @@ condition ::= NOT simple_condition
 simple_condition ::= expression GT expression 
                   {: 
                   System.out.println(">"); 
-                  IntermediateCodeGenerator.getInstance().addToken("CMP");
-                  RESULT = "BLE";
+                  // Polish notation: GT (expressions already processed)
+                  IntermediateCodeGenerator.getInstance().addToken("GT");
+                  RESULT = "GT";
                   :};
 
 simple_condition ::= expression LT expression 
                   {: 
                   System.out.println("<"); 
-                  IntermediateCodeGenerator.getInstance().addToken("CMP");
-                  RESULT = "BGE";
+                  // Polish notation: LT (expressions already processed)
+                  IntermediateCodeGenerator.getInstance().addToken("LT");
+                  RESULT = "LT";
                   :};
 
 simple_condition ::= expression GE expression 
                   {: 
                   System.out.println(">="); 
-                  IntermediateCodeGenerator.getInstance().addToken("CMP");
-                  RESULT = "BLT";
-
+                  // Polish notation: GE (expressions already processed)
+                  IntermediateCodeGenerator.getInstance().addToken("GE");
+                  RESULT = "GE";
                   :};
 
 simple_condition ::= expression LE expression 
                   {: 
                   System.out.println("<="); 
-                  IntermediateCodeGenerator.getInstance().addToken("CMP");
-                  RESULT = "BGT";
+                  // Polish notation: LE (expressions already processed)
+                  IntermediateCodeGenerator.getInstance().addToken("LE");
+                  RESULT = "LE";
                   :};
 
 simple_condition ::= expression EQ expression 
                   {: 
                   System.out.println("="); 
-                  IntermediateCodeGenerator.getInstance().addToken("CMP");
-                  RESULT = "BNE";
+                  // Polish notation: EQ (expressions already processed)
+                  IntermediateCodeGenerator.getInstance().addToken("EQ");
+                  RESULT = "EQ";
                   :};
 
 simple_condition ::= IS_ZERO OPEN_BRACKET expression CLOSE_BRACKET
@@ -360,8 +365,14 @@ factor ::= TRIANGLE_AREA_MAX OPEN_BRACKET arg_list CLOSE_BRACKET
          :};
 
 /* NUEVO: unarios (para -n, +n, etc.) */
-factor ::= PLUS factor {: System.out.println("unario +"); :};
-factor ::= SUB  factor {: System.out.println("unario -"); :};
+factor ::= PLUS factor {: 
+         System.out.println("unario +"); 
+         IntermediateCodeGenerator.getInstance().addToken("+");
+         :};
+factor ::= SUB  factor {: 
+         System.out.println("unario -"); 
+         IntermediateCodeGenerator.getInstance().addToken("-");
+         :};
 
 
 read    ::= READ OPEN_BRACKET IDENTIFIER:id CLOSE_BRACKET 
@@ -391,9 +402,4 @@ triangle ::= OPEN_SQUARE coords SEMICOLON coords SEMICOLON coords CLOSE_SQUARE {
 coords ::= expression COMMA expression {: System.out.println("Funcion triangle - valores"); :};
 
 
-/* condición booleana: isZero(expr) 
-condition  ::= IS_ZERO OPEN_BRACKET expression CLOSE_BRACKET 
-            {: 
-            System.out.println("REGLA -- condicion <-- isZero(expr)"); 
-            IntermediateCodeGenerator.getInstance.addToken(IS_ZERO);
-            :};*/
+/* condición booleana: isZero(expr) - Ya está implementada en simple_condition */
