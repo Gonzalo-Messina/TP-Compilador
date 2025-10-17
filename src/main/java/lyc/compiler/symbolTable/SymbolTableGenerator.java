@@ -112,11 +112,19 @@ public class SymbolTableGenerator implements FileGenerator {
     }
 
     /** NUEVO: registra todas las VARIABLES declaradas con un tipo. */
-    public void addIdentifiers(List names, String typeDef) {
+    public void addIdentifiers(List names, String typeDef) throws CompilerException {
         String type = normalizeType(String.valueOf(typeDef));
         for (Object o : names) {
             String id = String.valueOf(o);
             if (id == null || id.isEmpty()) continue;
+
+            // VALIDACIÓN: Verificar si la variable ya fue declarada
+            if (this.symbols.containsKey(id)) {
+                SymbolTableData existingData = this.symbols.get(id);
+                if (existingData.getType() != null) {
+                    throw new DuplicateVariableException("Variable '" + id + "' ya fue declarada previamente");
+                }
+            }
 
             // Si no existía, la creo con tipo y longitud = largo del nombre. Valor vacío.
             if (!this.symbols.containsKey(id)) {
@@ -171,4 +179,16 @@ public class SymbolTableGenerator implements FileGenerator {
     }
     
     private static String nz(String s) { return s == null ? "" : s; }
+    
+    /** Obtiene el tipo de una variable declarada */
+    public String getVariableType(String variableName) {
+        SymbolTableData data = this.symbols.get(variableName);
+        return data != null ? data.getType() : null;
+    }
+    
+    /** Verifica si una variable existe y está declarada */
+    public boolean isVariableDeclared(String variableName) {
+        SymbolTableData data = this.symbols.get(variableName);
+        return data != null && data.getType() != null;
+    }
 }

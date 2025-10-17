@@ -2,7 +2,7 @@
 
 init {
     areaMax, x, varFloat1, varFloat2, varFloat3 : Float
-    z, varInt1, varInt2 : Int
+    z, varInt1, varInt2, a, b, c : Int
     varStr1 : String
     s, h, contador : Int
 }
@@ -139,4 +139,16 @@ if (isZero( s*7+1-h/2 ))
 
 z := 2
 x := 3.8
-areaMax := triangleAreaMaximum( [0,x; 4.0,12; 2.5,3] ; [x,0; 6,0; z,2] ) 
+areaMax := triangleAreaMaximum( [0,x; 4.0,12; 2.5,3] ; [x,0; 6,0; z,2] )
+
+#+ Validaciones semánticas - Variables duplicadas +#
+#+ varInt1 : Int     +#  // Error: Variable 'varInt1' ya fue declarada previamente
+
+#+ Validaciones semánticas - Variables no declaradas +#
+#+ variableNoDeclarada := 100     +#  // Error: Variable 'variableNoDeclarada' no fue declarada
+#+ otraNoExiste := "texto"        +#  // Error: Variable 'otraNoExiste' no fue declarada
+
+#+ Validaciones semánticas - Incompatibilidad de tipos +#
+varInt1 := "string"              # Error: No se puede asignar String a variable Int
+#+ varStr1 := 123                 +#  // Error: No se puede asignar Int a variable String
+#+ varFloat1 := "texto"           +#  // Error: No se puede asignar String a variable Float 

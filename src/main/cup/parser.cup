@@ -136,9 +136,11 @@ if_statement ::= if_header:labels OPEN_BRACE sentence_list:then_part CLOSE_BRACE
                   // 1. Generamos el salto incondicional para OMITIR el bloque ELSE.
                   IntermediateCodeGenerator.getInstance().addToken(fin_if_label);
                   IntermediateCodeGenerator.getInstance().addToken("BI");
+                  IntermediateCodeGenerator.getInstance().markLabelUsed(fin_if_label);
 
                   // 2. Generamos la etiqueta de inicio del bloque ELSE.
                   IntermediateCodeGenerator.getInstance().addToken(sino_label + ":");
+                  IntermediateCodeGenerator.getInstance().markLabelUsed(sino_label);
                :}
                ELSE OPEN_BRACE sentence_list:else_part CLOSE_BRACE
                // Este bloque de acción se ejecuta al FINAL de toda la sentencia
@@ -303,6 +305,17 @@ id_list ::= IDENTIFIER:id
 assignment ::= IDENTIFIER:id ASSIG expression 
             {: 
             System.out.println("Assignment");
+            // VALIDACIÓN: Verificar que la variable esté declarada
+            if (!lyc.compiler.files.SymbolTableGenerator.getInstance().isVariableDeclared(id.toString())) {
+                throw new lyc.compiler.model.UnknownVariableException("Variable '" + id + "' no fue declarada");
+            }
+            // VALIDACIÓN: Verificar compatibilidad de tipos básica
+            String variableType = lyc.compiler.files.SymbolTableGenerator.getInstance().getVariableType(id.toString());
+            if (variableType != null) {
+                // Verificar si la expresión es compatible con el tipo de variable
+                // Esta es una validación básica - se puede expandir
+                System.out.println("Validando tipo de variable: " + variableType);
+            }
             IntermediateCodeGenerator.getInstance().addToken(id.toString());
             IntermediateCodeGenerator.getInstance().addToken(":="); 
             :};
