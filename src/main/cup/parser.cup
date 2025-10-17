@@ -66,8 +66,8 @@ non terminal typeDef;
 
 //Funcion triangle
 non terminal arg_list;
-non terminal triangle;
-non terminal coords;
+non terminal java.util.List triangle;
+non terminal java.util.List coords;
 
 
 non terminal while_statement;
@@ -260,9 +260,8 @@ simple_condition ::= expression EQ expression
 simple_condition ::= IS_ZERO OPEN_BRACKET expression:exp CLOSE_BRACKET
                   {: 
                   System.out.println("IS_ZERO_CONDITION");
-                  IntermediateCodeGenerator.getInstance().addToken(exp.toString());
-                    IntermediateCodeGenerator.getInstance().addToken("0");
-                    IntermediateCodeGenerator.getInstance().addToken("EQ");
+                  IntermediateCodeGenerator.getInstance().addToken("0");
+                  IntermediateCodeGenerator.getInstance().addToken("EQ");
                   :};
 
 
@@ -415,9 +414,25 @@ write   ::= WRITE OPEN_BRACKET TEXT:text CLOSE_BRACKET
          :};
 
 //Funcion triangle
-arg_list ::= triangle SEMICOLON triangle {: System.out.println("TRIANGLE_AREA_MAXIMUM - parametros (2)"); :};
-triangle ::= OPEN_SQUARE coords SEMICOLON coords SEMICOLON coords CLOSE_SQUARE {: System.out.println("Triangulo con 3 coordenadas"); :};
-coords ::= expression:x COMMA expression:y {: System.out.println("Coordenada (" + x + "," + y + ""); :};
+arg_list ::= triangle:t1 SEMICOLON triangle:t2 
+            {: 
+            System.out.println("TRIANGLE_AREA_MAXIMUM - calculando areas de 2 triangulos");           
+            IntermediateCodeGenerator gen = IntermediateCodeGenerator.getInstance();       
+            gen.addToken("TRIANGLE_AREA_CALC");
+            System.out.println("TRIANGLE_AREA_MAXIMUM - codigo generado");
+            :};
+triangle ::= OPEN_SQUARE coords:c1 SEMICOLON coords:c2 SEMICOLON coords:c3 CLOSE_SQUARE 
+            {: 
+            System.out.println("Triangulo con 3 coordenadas"); 
+            java.util.List result = new java.util.ArrayList();
+            RESULT = result;
+            :};
+coords ::= expression:x COMMA expression:y 
+          {: 
+          System.out.println("Coordenada procesada"); 
+          java.util.List result = new java.util.ArrayList();
+          RESULT = result;
+          :};
 
 
 /* condición booleana: isZero(expr) - Ya está implementada en simple_condition */
