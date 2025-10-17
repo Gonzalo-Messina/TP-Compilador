@@ -116,7 +116,7 @@ Init             = "init"
  {Not}            { return symbol(ParserSym.NOT,yytext()); }
  {While}          { return symbol(ParserSym.WHILE); }
  {IsZero}         { return symbol(ParserSym.IS_ZERO); }
- {TriangleAreaMaximum} { return symbol(ParserSym.TRIANGLE_AREA_MAX); }  /* NUEVO */
+ {TriangleAreaMaximum} { return symbol(ParserSym.TRIANGLE_AREA_MAXIMUM); }  /* NUEVO */
 
  /* IDENTIFICADOR */
  {Identifier}     { return symbol(ParserSym.IDENTIFIER, yytext()); }

@@ -44,7 +44,7 @@ terminal IF;
 terminal ELSE;
 terminal WHILE;
 terminal IS_ZERO;
-terminal TRIANGLE_AREA_MAX;
+terminal TRIANGLE_AREA_MAXIMUM;
 
 // Non Terminals
 non terminal program;
@@ -76,8 +76,8 @@ non terminal java.util.List<String> if_header;
 non terminal java.util.List<String> while_header;
 non terminal String while_start;
 
-non terminal String condition;
-non terminal String simple_condition;
+non terminal condition;
+non terminal simple_condition;
 
 
 
@@ -98,21 +98,26 @@ sentence ::= COMMENT {: System.out.println("comentario"); :};
 
 // --- ESTRUCTURAS DE CONTROL ---
 
+
+// IF HEADER para ambos casos (simple y con else)
 if_header ::= IF OPEN_BRACKET condition:c CLOSE_BRACKET
             {:
                 // 1. Creamos las etiquetas aquí mismo.
                 String sino_label = IntermediateCodeGenerator.getInstance().newLabel();
                 String fin_if_label = IntermediateCodeGenerator.getInstance().newLabel();
+                 
 
                 // 2. Generamos el salto condicional al bloque ELSE.
                 // La condición ya generó sus tokens, solo agregamos el salto
                 IntermediateCodeGenerator.getInstance().addToken(sino_label);
                 IntermediateCodeGenerator.getInstance().addToken("BF");
+                IntermediateCodeGenerator.getInstance().markLabelUsed(sino_label);
 
                 // 3. Devolvemos las etiquetas para que la regla principal las use.
                 RESULT = java.util.Arrays.asList(sino_label, fin_if_label);
             :};
 
+// IF SIMPLE
 if_statement ::= if_header:labels OPEN_BRACE sentence_list CLOSE_BRACE 
                {: 
                   System.out.println("IF");
@@ -126,9 +131,10 @@ if_statement ::= if_header:labels OPEN_BRACE sentence_list CLOSE_BRACE
                   IntermediateCodeGenerator.getInstance().addToken(fin_if_label + ":");
                :};
 
+// IF-ELSE  
 if_statement ::= if_header:labels OPEN_BRACE sentence_list:then_part CLOSE_BRACE
-               // Este bloque de acción se ejecuta ANTES de procesar el ELSE
                {: 
+                  System.out.println("IF-ELSE");
                   // Recuperamos las etiquetas que generó el if_header.
                   String sino_label = labels.get(0);
                   String fin_if_label = labels.get(1);
@@ -170,6 +176,7 @@ while_header ::= while_start:inicio_label condition:c CLOSE_BRACKET
                     // Ahora generamos el salto para salir del bucle.
                     IntermediateCodeGenerator.getInstance().addToken(fin_label);
                     IntermediateCodeGenerator.getInstance().addToken("BF");
+                     IntermediateCodeGenerator.getInstance().markLabelUsed(fin_label);
 
                     // Pasamos ambas etiquetas a la regla final.
                     RESULT = java.util.Arrays.asList(inicio_label, fin_label);
@@ -177,7 +184,6 @@ while_header ::= while_start:inicio_label condition:c CLOSE_BRACKET
 
 while_statement ::= while_header:labels OPEN_BRACE sentence_list:body CLOSE_BRACE
                   {: 
-                    System.out.println("WHILE"); 
                     String inicio_label = labels.get(0);
                     String fin_label = labels.get(1);
 
@@ -185,6 +191,7 @@ while_statement ::= while_header:labels OPEN_BRACE sentence_list:body CLOSE_BRAC
                     // Ahora generamos el salto incondicional para volver al INICIO.
                     IntermediateCodeGenerator.getInstance().addToken(inicio_label);
                     IntermediateCodeGenerator.getInstance().addToken("BI");
+                    IntermediateCodeGenerator.getInstance().markLabelUsed(inicio_label);
                             
                     // Finalmente, generamos la etiqueta de FIN.
                     IntermediateCodeGenerator.getInstance().addToken(fin_label + ":");
@@ -216,48 +223,46 @@ condition ::= NOT simple_condition
 
 simple_condition ::= expression GT expression 
                   {: 
-                  System.out.println(">"); 
-                  // Polish notation: GT (expressions already processed)
-                  IntermediateCodeGenerator.getInstance().addToken("GT");
-                  RESULT = "GT";
+                    System.out.println(">"); 
+                    IntermediateCodeGenerator.getInstance().addToken("CMP");
+                    IntermediateCodeGenerator.getInstance().addToken("BLE"); // Salta si NO es mayor
                   :};
 
-simple_condition ::= expression LT expression 
+simple_condition ::= expression LT expression  
                   {: 
-                  System.out.println("<"); 
-                  // Polish notation: LT (expressions already processed)
-                  IntermediateCodeGenerator.getInstance().addToken("LT");
-                  RESULT = "LT";
+
+                    System.out.println("<"); 
+                    IntermediateCodeGenerator.getInstance().addToken("CMP");
+                    IntermediateCodeGenerator.getInstance().addToken("BGE"); // Salta si NO es menor
                   :};
 
 simple_condition ::= expression GE expression 
                   {: 
-                  System.out.println(">="); 
-                  // Polish notation: GE (expressions already processed)
-                  IntermediateCodeGenerator.getInstance().addToken("GE");
-                  RESULT = "GE";
+                    System.out.println(">="); 
+                    IntermediateCodeGenerator.getInstance().addToken("CMP");
+                    IntermediateCodeGenerator.getInstance().addToken("BLT"); // Salta si NO es mayor o igual
                   :};
 
 simple_condition ::= expression LE expression 
                   {: 
-                  System.out.println("<="); 
-                  // Polish notation: LE (expressions already processed)
-                  IntermediateCodeGenerator.getInstance().addToken("LE");
-                  RESULT = "LE";
+                    System.out.println("<="); 
+                    IntermediateCodeGenerator.getInstance().addToken("CMP");
+                    IntermediateCodeGenerator.getInstance().addToken("BGT"); // Salta si NO es menor o igual
                   :};
 
 simple_condition ::= expression EQ expression 
                   {: 
-                  System.out.println("="); 
-                  // Polish notation: EQ (expressions already processed)
-                  IntermediateCodeGenerator.getInstance().addToken("EQ");
-                  RESULT = "EQ";
+                    System.out.println("="); 
+                    IntermediateCodeGenerator.getInstance().addToken("CMP");
+                    IntermediateCodeGenerator.getInstance().addToken("BNE"); // Salta si NO es igual
                   :};
-
-simple_condition ::= IS_ZERO OPEN_BRACKET expression CLOSE_BRACKET
+                  
+simple_condition ::= IS_ZERO OPEN_BRACKET expression:exp CLOSE_BRACKET
                   {: 
                   System.out.println("IS_ZERO_CONDITION");
-                  IntermediateCodeGenerator.getInstance().addToken("IS_ZERO"); 
+                  IntermediateCodeGenerator.getInstance().addToken(exp.toString());
+                    IntermediateCodeGenerator.getInstance().addToken("0");
+                    IntermediateCodeGenerator.getInstance().addToken("EQ");
                   :};
 
 
@@ -371,7 +376,7 @@ factor ::= TEXT:string_const
          :};
 
 factor ::= OPEN_BRACKET expression CLOSE_BRACKET {: System.out.println("Factor = (Expression)"); :};
-factor ::= TRIANGLE_AREA_MAX OPEN_BRACKET arg_list CLOSE_BRACKET 
+factor ::= TRIANGLE_AREA_MAXIMUM OPEN_BRACKET arg_list CLOSE_BRACKET 
          {: 
          System.out.println("Funcion triangle - metodo"); 
          IntermediateCodeGenerator.getInstance().addToken("triangleAreaMaximum");
@@ -410,9 +415,9 @@ write   ::= WRITE OPEN_BRACKET TEXT:text CLOSE_BRACKET
          :};
 
 //Funcion triangle
-arg_list ::= triangle SEMICOLON triangle {: System.out.println("Funcion triangle - params"); :};
-triangle ::= OPEN_SQUARE coords SEMICOLON coords SEMICOLON coords CLOSE_SQUARE {: System.out.println("Funcion triangle - coord triangulo"); :};
-coords ::= expression COMMA expression {: System.out.println("Funcion triangle - valores"); :};
+arg_list ::= triangle SEMICOLON triangle {: System.out.println("TRIANGLE_AREA_MAXIMUM - parametros (2)"); :};
+triangle ::= OPEN_SQUARE coords SEMICOLON coords SEMICOLON coords CLOSE_SQUARE {: System.out.println("Triangulo con 3 coordenadas"); :};
+coords ::= expression:x COMMA expression:y {: System.out.println("Coordenada (" + x + "," + y + ""); :};
 
 
 /* condición booleana: isZero(expr) - Ya está implementada en simple_condition */
