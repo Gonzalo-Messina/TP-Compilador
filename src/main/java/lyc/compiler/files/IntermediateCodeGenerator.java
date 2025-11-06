@@ -14,18 +14,14 @@ public class IntermediateCodeGenerator implements FileGenerator {
 
     // Lista para almacenar la secuencia de RPN
     private final List<String> rpnCode;
-    
-    // Contador para generar etiquetas únicas para los saltos (if, while, etc.)
-    private int labelCounter;
-    
-    // Set para rastrear etiquetas usadas (para optimización)
-    private final java.util.Set<String> usedLabels;
+
+    // El contador de etiquetas y su lógica se eliminan.
 
     // Constructor privado para el Singleton
     private IntermediateCodeGenerator() {
         this.rpnCode = new ArrayList<>();
-        this.labelCounter = 0;
-        this.usedLabels = new java.util.HashSet<>();
+        // this.labelCounter = 0; // Eliminado
+        // this.usedLabels = new java.util.HashSet<>(); // Eliminado
     }
 
     // Método público para obtener la instancia única
@@ -39,102 +35,68 @@ public class IntermediateCodeGenerator implements FileGenerator {
     /**
      * Agrega un token (operando o operador) a la secuencia de RPN.
      * @param token El token a agregar (ej: "mi_variable", "5", "+").
+     * @return El índice (posición) en el que se agregó el token.
      */
-    public void addToken(String token) {
+    public int addToken(String token) {
+        // La posición del token es su índice en la lista (size() antes de añadir)
+        int index = this.rpnCode.size();
         this.rpnCode.add(token);
+        return index;
+    }
+
+    // --- Métodos de Backpatching (Reemplazan la lógica de Etiquetas) ---
+
+    /**
+     * Devuelve el índice de la siguiente instrucción a ser agregada.
+     * Esto es el "índice de destino" para los saltos.
+     * @return El índice de la siguiente instrucción.
+     */
+    public int getInstructionCount() {
+        // La siguiente instrucción se agregará al final, por lo tanto, el índice
+        // es el tamaño actual de la lista.
+        return this.rpnCode.size();
     }
 
     /**
-     * Crea una nueva etiqueta única para ser usada en saltos.
-     * @return El nombre de la etiqueta (ej: "L0", "L1").
+     * Parchea un marcador de posición de salto con un índice de destino real.
+     * Usado por las acciones semánticas de IF y WHILE.
+     * @param indexToPatch El índice del token (placeholder "_PLHDR") a modificar.
+     * @param targetIndex La posición (índice) a la que debe saltar.
      */
-    public String newLabel() {
-        System.out.println("Nueva etiqueta: L" + labelCounter);
-        return "L" + labelCounter++;
-    }
-    
-    /**
-     * Marca una etiqueta como usada para optimización.
-     * @param label La etiqueta que se está usando.
-     */
-    public void markLabelUsed(String label) {
-        this.usedLabels.add(label);
-    }
-    
-    /**
-     * Verifica si una etiqueta está siendo usada.
-     * @param label La etiqueta a verificar.
-     * @return true si la etiqueta está siendo usada.
-     */
-    public boolean isLabelUsed(String label) {
-        return this.usedLabels.contains(label);
-    }
-    
-    /**
-     * Optimiza el código intermedio eliminando etiquetas no usadas.
-     */
-    public void optimizeLabels() throws CompilerException {
-        System.out.println("Optimizando etiquetas - Total etiquetas generadas: " + labelCounter);
-        System.out.println("Etiquetas usadas: " + usedLabels.size());
-        
-        // Validar flujo de etiquetas
-        validateLabelFlow();
-        
-        // Aquí se podría implementar lógica más avanzada de optimización
-        // Por ahora solo reportamos estadísticas
-    }
-    
-    /**
-     * Valida que todas las etiquetas estén correctamente definidas y usadas.
-     */
-    private void validateLabelFlow() throws CompilerException {
-        System.out.println("Validando flujo de etiquetas...");
-        java.util.Set<String> definedLabels = new java.util.HashSet<>();
-
-        // 1. Encontrar todas las etiquetas definidas (ej: "L1:")
-        for (String token : rpnCode) {
-            if (token.endsWith(":")) {
-                definedLabels.add(token.substring(0, token.length() - 1));
-            }
+    public void backpatch(int indexToPatch, String targetIndex) {
+        // 1. Verificación básica de índice
+        if (indexToPatch < 0 || indexToPatch >= this.rpnCode.size()) {
+            System.err.println("ADVERTENCIA: Intento de parchear un índice fuera de rango: " + indexToPatch);
+            return;
         }
 
-        // 2. Verificar que todas las etiquetas USADAS estén DEFINIDAS
-        for (String label : usedLabels) {
-            if (!definedLabels.contains(label)) {
-                throw new InvalidLabelException("Error de flujo: Etiqueta " + label + " es usada pero no fue definida en el código.");
-            }
+        // 2. Opcional: Verificar que estemos modificando el placeholder
+        if (!this.rpnCode.get(indexToPatch).equals("_PLHDR")) {
+            System.err.println("ADVERTENCIA: Parcheando un token que no es un placeholder en el índice: " + indexToPatch);
         }
 
-        // 3. (Opcional) Advertir sobre etiquetas DEFINIDAS pero nunca USADAS
-        for (String label : definedLabels) {
-            if (!usedLabels.contains(label)) {
-                System.out.println("ADVERTENCIA: Etiqueta " + label + " fue definida pero nunca usada. Podría indicar código muerto o redundante.");
-            }
-        }
-
-        System.out.println("Validación de flujo completada");
+        // 3. Modifica el token. El formato será "POSICIÓN"
+        this.rpnCode.set(indexToPatch, targetIndex);
+        System.out.println("PATCHED: Índice " + indexToPatch + " => " + targetIndex);
     }
+
+    // Los métodos newLabel, markLabelUsed, isLabelUsed, optimizeLabels, validateLabelFlow se eliminan.
 
     @Override
     public void generate(FileWriter fileWriter) throws IOException {
-        // Optimizar etiquetas antes de generar el código
-        try {
-            optimizeLabels();
-        } catch (CompilerException e) {
-            throw new IOException("Error durante la validación del código intermedio: " + e.getMessage(), e);
-        }
-        
+
+        // No hay optimización ni validación de etiquetas, ya que no se usan.
+
         // Escribe el título o cabecera del código intermedio
-        fileWriter.write("Código Intermedio (Notación Polaca Inversa)\n");
-        fileWriter.write("------------------------------------------\n");
+        fileWriter.write("Código Intermedio (Notación Polaca Inversa con Índices)\n");
+        fileWriter.write("------------------------------------------------------\n");
 
         // Itera sobre la lista de tokens RPN acumulados y los escribe en el archivo
-        for (String token : rpnCode) {
-            // Escribimos cada token seguido de un espacio para que quede en una sola línea
-            // o con un salto de línea para mayor claridad. Usemos salto de línea.
-            fileWriter.write( token + "\n");
+        for (int i = 0; i < rpnCode.size(); i++) {
+            // Incluimos el índice al inicio de cada línea para mejor visibilidad
+            fileWriter.write( String.format("[%d] %s%n", i, rpnCode.get(i)) );
         }
-        
-        fileWriter.write("------------------------------------------\n");
+
+        fileWriter.write("------------------------------------------------------\n");
     }
 }

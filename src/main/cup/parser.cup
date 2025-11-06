@@ -3,8 +3,36 @@ package lyc.compiler;
 import java_cup.runtime.*;
 import lyc.compiler.ParserSym; 
 import lyc.compiler.files.IntermediateCodeGenerator;
+import java.util.Stack;
 
 class Parser;
+
+parser code {:
+    // Pilas para gestionar los índices de salto que necesitan ser parcheados (backpatching).
+    // Nota: Aunque la lógica de backpatching está en las acciones semánticas,
+    // se asume que IntermediateCodeGenerator tiene los métodos necesarios.
+    private java.util.Stack<Integer> jumpToPatch = new java.util.Stack<>();
+
+    // Utilidad: Devuelve el índice de la siguiente instrucción.
+    // ASUMIMOS que existe y devuelve la posición actual del flujo RPN.
+    private int getNextIndex() {
+        // Implementación hipotética:
+        return IntermediateCodeGenerator.getInstance().getInstructionCount();
+    }
+
+    // Utilidad: Genera un token marcador de posición y devuelve su índice.
+    // El token "_PLHDR" será reemplazado por la posición real al hacer backpatch.
+    private int generatePlaceholder() {
+        // ASUMIMOS que existe y añade un token a la lista.
+        return IntermediateCodeGenerator.getInstance().addToken("_PLHDR");
+    }
+
+    // Utilidad: Parchea el marcador de posición con el índice real de destino.
+    private void backpatch(int indexToPatch, int targetIndex) {
+        // ASUMIMOS que existe y modifica el token previamente añadido.
+        IntermediateCodeGenerator.getInstance().backpatch(indexToPatch, String.valueOf(targetIndex));
+    }
+:};
 
 // Terminals
 terminal INIT;
@@ -72,9 +100,11 @@ non terminal java.util.List coords;
 
 non terminal while_statement;
 non terminal if_statement;
-non terminal java.util.List<String> if_header;
-non terminal java.util.List<String> while_header;
-non terminal String while_start;
+// Ahora devuelve una lista de Integer (posiciones de marcadores de salto)
+non terminal java.util.List<Integer> if_header;
+non terminal java.util.List<Integer> while_header;
+// Ahora devuelve un Integer (posición de inicio del bucle)
+non terminal Integer while_start;
 
 non terminal condition;
 non terminal simple_condition;
@@ -102,99 +132,110 @@ sentence ::= COMMENT {: System.out.println("comentario"); :};
 // IF HEADER para ambos casos (simple y con else)
 if_header ::= IF OPEN_BRACKET condition:c CLOSE_BRACKET
             {:
-                // 1. Creamos las etiquetas aquí mismo.
-                String sino_label = IntermediateCodeGenerator.getInstance().newLabel();
-                String fin_if_label = IntermediateCodeGenerator.getInstance().newLabel();
-                 
+                // 1. Obtenemos el índice del marcador de salto (Placeholder) para el salto condicional.
+                int sino_placeholder = generatePlaceholder();
 
-                // 2. Generamos el salto condicional al bloque ELSE.
-                // La condición ya generó sus tokens, solo agregamos el salto
-                IntermediateCodeGenerator.getInstance().addToken(sino_label);
+                // 2. Generamos el salto condicional (BF).
+                // La condición ya generó sus tokens. El BF consumirá el resultado de la condición y el PLHDR.
                 IntermediateCodeGenerator.getInstance().addToken("BF");
-                IntermediateCodeGenerator.getInstance().markLabelUsed(sino_label);
 
-                // 3. Devolvemos las etiquetas para que la regla principal las use.
-                RESULT = java.util.Arrays.asList(sino_label, fin_if_label);
+                // 3. Devolvemos la posición del marcador de salto.
+                // Para IF-ELSE, este es el que saltará al ELSE. Para IF simple, saltará al FIN.
+                RESULT = java.util.Arrays.asList(sino_placeholder);
             :};
 
 // IF SIMPLE
-if_statement ::= if_header:labels OPEN_BRACE sentence_list CLOSE_BRACE 
-               {: 
+if_statement ::= if_header:placeholders OPEN_BRACE sentence_list CLOSE_BRACE
+               {:
                   System.out.println("IF");
-                  // Para un IF simple, el salto nos saca de la estructura.
-                  // La etiqueta "sino" es en realidad la etiqueta "fin".
-                  String fin_if_label = labels.get(0);
+                  // El marcador de salto que se debe parchear.
+                  int sino_placeholder = placeholders.get(0);
 
-                  // El código del THEN ya fue generado.
+                  // El destino final es el índice de la siguiente instrucción.
+                  int fin_if_pos = getNextIndex();
 
-                  // Generamos la etiqueta de destino final.
-                  IntermediateCodeGenerator.getInstance().addToken(fin_if_label + ":");
+                  // Parcheamos el salto condicional (BF) para que salte al final del IF.
+                  backpatch(sino_placeholder, fin_if_pos);
                :};
 
-// IF-ELSE  
-if_statement ::= if_header:labels OPEN_BRACE sentence_list:then_part CLOSE_BRACE
-               {: 
-                  System.out.println("IF-ELSE");
-                  // Recuperamos las etiquetas que generó el if_header.
-                  String sino_label = labels.get(0);
-                  String fin_if_label = labels.get(1);
+// IF-ELSE
+if_statement ::= if_header:placeholders OPEN_BRACE sentence_list:then_part CLOSE_BRACE
+               {:
+                  System.out.println("IF-ELSE - Final del THEN");
+                  // Recuperamos el marcador que generó el if_header.
+                  int sino_placeholder = placeholders.get(0);
 
-                  // 1. Generamos el salto incondicional para OMITIR el bloque ELSE.
-                  IntermediateCodeGenerator.getInstance().addToken(fin_if_label);
+                  // 1. Creamos un marcador para el salto BI que omitirá el ELSE.
+                  int fin_if_placeholder = generatePlaceholder();
+
+                  // 2. Generamos el salto incondicional (BI).
                   IntermediateCodeGenerator.getInstance().addToken("BI");
-                  IntermediateCodeGenerator.getInstance().markLabelUsed(fin_if_label);
 
-                  // 2. Generamos la etiqueta de inicio del bloque ELSE.
-                  IntermediateCodeGenerator.getInstance().addToken(sino_label + ":");
-                  IntermediateCodeGenerator.getInstance().markLabelUsed(sino_label);
+                  // 3. El inicio del ELSE es el índice de la siguiente instrucción.
+                  int else_start_pos = getNextIndex();
+
+                  // 4. Parcheamos el salto condicional (BF) para que salte al inicio del ELSE.
+                  backpatch(sino_placeholder, else_start_pos);
+
+                  // Devolvemos el marcador de salto BI para parchearlo al final.
+                  RESULT = java.util.Arrays.asList(fin_if_placeholder);
                :}
                ELSE OPEN_BRACE sentence_list:else_part CLOSE_BRACE
                // Este bloque de acción se ejecuta al FINAL de toda la sentencia
                {:
-                  // Recuperamos la etiqueta final de las etiquetas originales.
-                  String fin_if_label = labels.get(1);
+                  System.out.println("IF-ELSE - Final del ELSE");
+                  // Recuperamos el marcador final del bloque de acción anterior.
+                  int fin_if_placeholder = ((java.util.List<Integer>)RESULT).get(0);
 
-                  // 3. Generamos la etiqueta de fin de toda la estructura.
-                  IntermediateCodeGenerator.getInstance().addToken(fin_if_label + ":");
+                  // El destino final es el índice de la siguiente instrucción.
+                  int fin_if_pos = getNextIndex();
+
+                  // 5. Parcheamos el salto incondicional (BI) para que salte al final de toda la estructura.
+                  backpatch(fin_if_placeholder, fin_if_pos);
                :};
 
 /* while ( condition ) { sentence_list } */
 
 while_start ::= WHILE OPEN_BRACKET
               {:
-                  System.out.println("WHILE"); 
-                  String inicio_label = IntermediateCodeGenerator.getInstance().newLabel();
-                  IntermediateCodeGenerator.getInstance().addToken(inicio_label + ":");
-                  RESULT = inicio_label; // Devuelve el nombre de la etiqueta
+                  System.out.println("WHILE - Inicio");
+                  // El inicio del bucle es el índice de la siguiente instrucción
+                  int inicio_pos = getNextIndex();
+                  RESULT = inicio_pos; // Devuelve el índice de inicio
               :};
 
-while_header ::= while_start:inicio_label condition:c CLOSE_BRACKET
+while_header ::= while_start:inicio_pos condition:c CLOSE_BRACKET
                {:
-                    String fin_label = IntermediateCodeGenerator.getInstance().newLabel();
+                    // 1. Creamos un marcador para el salto de salida (BF).
+                    int fin_placeholder = generatePlaceholder();
 
-                    // La condición ya generó sus tokens, solo agregamos el salto
-                    // Ahora generamos el salto para salir del bucle.
-                    IntermediateCodeGenerator.getInstance().addToken(fin_label);
+                    // 2. Generamos el salto para salir del bucle si la condición es falsa.
+                    // La condición ya generó sus tokens.
                     IntermediateCodeGenerator.getInstance().addToken("BF");
-                     IntermediateCodeGenerator.getInstance().markLabelUsed(fin_label);
 
-                    // Pasamos ambas etiquetas a la regla final.
-                    RESULT = java.util.Arrays.asList(inicio_label, fin_label);
+                    // Pasamos ambas posiciones a la regla final.
+                    RESULT = java.util.Arrays.asList(inicio_pos, fin_placeholder);
                :};
 
-while_statement ::= while_header:labels OPEN_BRACE sentence_list:body CLOSE_BRACE
-                  {: 
-                    String inicio_label = labels.get(0);
-                    String fin_label = labels.get(1);
+while_statement ::= while_header:placeholders OPEN_BRACE sentence_list:body CLOSE_BRACE
+                  {:
+                    int inicio_pos = placeholders.get(0);
+                    int fin_placeholder = placeholders.get(1);
 
-                    // El código del cuerpo ya se generó.
-                    // Ahora generamos el salto incondicional para volver al INICIO.
-                    IntermediateCodeGenerator.getInstance().addToken(inicio_label);
+                    // 1. Creamos un marcador para el salto BI de vuelta al inicio.
+                    int loop_back_placeholder = generatePlaceholder();
+
+                    // 2. Generamos el salto incondicional para volver al INICIO.
                     IntermediateCodeGenerator.getInstance().addToken("BI");
-                    IntermediateCodeGenerator.getInstance().markLabelUsed(inicio_label);
-                            
-                    // Finalmente, generamos la etiqueta de FIN.
-                    IntermediateCodeGenerator.getInstance().addToken(fin_label + ":");
+
+                    // 3. Parcheamos el salto incondicional BI para que salte a inicio_pos.
+                    backpatch(loop_back_placeholder, inicio_pos);
+
+                    // 4. El destino final es el índice de la siguiente instrucción.
+                    int fin_pos = getNextIndex();
+
+                    // 5. Parcheamos el salto condicional BF para que salte a fin_pos.
+                    backpatch(fin_placeholder, fin_pos);
                   :};
 
 
@@ -202,63 +243,63 @@ while_statement ::= while_header:labels OPEN_BRACE sentence_list:body CLOSE_BRAC
 
 condition ::= simple_condition:sc {: System.out.println("Condición test"); RESULT = sc; :};
 
-condition ::= condition AND simple_condition 
-            {: 
-            System.out.println("Condicion AND"); 
+condition ::= condition AND simple_condition
+            {:
+            System.out.println("Condicion AND");
             IntermediateCodeGenerator.getInstance().addToken("AND");
             :};
 
-condition ::= condition OR simple_condition  
-            {: 
+condition ::= condition OR simple_condition
+            {:
             System.out.println("Condicion OR");
             IntermediateCodeGenerator.getInstance().addToken("OR");
             :};
 
-condition ::= NOT simple_condition                  
-            {: 
-            System.out.println("Condición NOT"); 
+condition ::= NOT simple_condition
+            {:
+            System.out.println("Condición NOT");
             IntermediateCodeGenerator.getInstance().addToken("NOT");
             :};
 
 
-simple_condition ::= expression GT expression 
-                  {: 
-                    System.out.println(">"); 
+simple_condition ::= expression GT expression
+                  {:
+                    System.out.println(">");
                     IntermediateCodeGenerator.getInstance().addToken("CMP");
                     IntermediateCodeGenerator.getInstance().addToken("BLE"); // Salta si NO es mayor
                   :};
 
-simple_condition ::= expression LT expression  
-                  {: 
+simple_condition ::= expression LT expression
+                  {:
 
-                    System.out.println("<"); 
+                    System.out.println("<");
                     IntermediateCodeGenerator.getInstance().addToken("CMP");
                     IntermediateCodeGenerator.getInstance().addToken("BGE"); // Salta si NO es menor
                   :};
 
-simple_condition ::= expression GE expression 
-                  {: 
-                    System.out.println(">="); 
+simple_condition ::= expression GE expression
+                  {:
+                    System.out.println(">=");
                     IntermediateCodeGenerator.getInstance().addToken("CMP");
                     IntermediateCodeGenerator.getInstance().addToken("BLT"); // Salta si NO es mayor o igual
                   :};
 
-simple_condition ::= expression LE expression 
-                  {: 
-                    System.out.println("<="); 
+simple_condition ::= expression LE expression
+                  {:
+                    System.out.println("<=");
                     IntermediateCodeGenerator.getInstance().addToken("CMP");
                     IntermediateCodeGenerator.getInstance().addToken("BGT"); // Salta si NO es menor o igual
                   :};
 
-simple_condition ::= expression EQ expression 
-                  {: 
-                    System.out.println("="); 
+simple_condition ::= expression EQ expression
+                  {:
+                    System.out.println("=");
                     IntermediateCodeGenerator.getInstance().addToken("CMP");
                     IntermediateCodeGenerator.getInstance().addToken("BNE"); // Salta si NO es igual
                   :};
-                  
+
 simple_condition ::= IS_ZERO OPEN_BRACKET expression:exp CLOSE_BRACKET
-                  {: 
+                  {:
                   System.out.println("IS_ZERO_CONDITION");
                   IntermediateCodeGenerator.getInstance().addToken("0");
                   IntermediateCodeGenerator.getInstance().addToken("EQ");
@@ -272,9 +313,9 @@ simple_condition ::= IS_ZERO OPEN_BRACKET expression:exp CLOSE_BRACKET
 typeDef ::= TYPE_INT    {: RESULT = "Int"; :};
 typeDef ::= TYPE_FLOAT  {: RESULT = "Float"; :};
 typeDef ::= TYPE_STRING {: RESULT = "String"; :};
-          
 
-// --- DECLARACIONES (No generan código intermedio) ---          
+
+// --- DECLARACIONES (No generan código intermedio) ---
 
 init_block ::= INIT OPEN_BRACE decl_list CLOSE_BRACE {: System.out.println("Init block cerrado"); :};
 
@@ -306,8 +347,8 @@ id_list ::= IDENTIFIER:id
 
 // --- ASIGNACIÓN Y EXPRESIONES ARITMÉTICAS ---
 
-assignment ::= IDENTIFIER:id ASSIG expression 
-            {: 
+assignment ::= IDENTIFIER:id ASSIG expression
+            {:
             System.out.println("Assignment");
             // VALIDACIÓN: Verificar que la variable esté declarada
             if (!lyc.compiler.files.SymbolTableGenerator.getInstance().isVariableDeclared(id.toString())) {
@@ -321,115 +362,115 @@ assignment ::= IDENTIFIER:id ASSIG expression
                 System.out.println("Validando tipo de variable: " + variableType);
             }
             IntermediateCodeGenerator.getInstance().addToken(id.toString());
-            IntermediateCodeGenerator.getInstance().addToken(":="); 
+            IntermediateCodeGenerator.getInstance().addToken(":=");
             :};
 
 expression ::= expression PLUS term
-            {: 
+            {:
             System.out.println("+");
             IntermediateCodeGenerator.getInstance().addToken("+");
             :};
 expression ::= expression SUB term
-            {: 
-            System.out.println("-"); 
+            {:
+            System.out.println("-");
             IntermediateCodeGenerator.getInstance().addToken("-");
             :};
 
 expression ::= term {: System.out.println("Expression = Term"); :};
 
-term ::= term MULT factor 
-      {: 
-      System.out.println("*"); 
+term ::= term MULT factor
+      {:
+      System.out.println("*");
       IntermediateCodeGenerator.getInstance().addToken("*");
       :};
 
-term ::= term DIV factor 
-      {: 
-      System.out.println("/"); 
+term ::= term DIV factor
+      {:
+      System.out.println("/");
       IntermediateCodeGenerator.getInstance().addToken("/");
       :};
 
 term ::= factor {: System.out.println("Term = factor"); :};
 
-factor ::= IDENTIFIER:id  
-         {: 
-         System.out.println("Id: " + id); 
+factor ::= IDENTIFIER:id
+         {:
+         System.out.println("Id: " + id);
          IntermediateCodeGenerator.getInstance().addToken(id.toString());
          :};
 factor ::= INTEGER_CONSTANT:int_const
-         {: 
-         System.out.println("Integer: " + int_const ); 
+         {:
+         System.out.println("Integer: " + int_const );
          IntermediateCodeGenerator.getInstance().addToken(int_const.toString());
          :};
 
 factor ::= FLOAT_CONSTANT:float_const
-         {: 
-         System.out.println("Float: " + float_const ); 
+         {:
+         System.out.println("Float: " + float_const );
          IntermediateCodeGenerator.getInstance().addToken(float_const.toString());
-         :};      
+         :};
 
-factor ::= TEXT:string_const              
-         {: 
+factor ::= TEXT:string_const
+         {:
          System.out.println("String: " + string_const);
          IntermediateCodeGenerator.getInstance().addToken(string_const.toString());
          :};
 
 factor ::= OPEN_BRACKET expression CLOSE_BRACKET {: System.out.println("Factor = (Expression)"); :};
-factor ::= TRIANGLE_AREA_MAXIMUM OPEN_BRACKET arg_list CLOSE_BRACKET 
-         {: 
-         System.out.println("Funcion triangle - metodo"); 
+factor ::= TRIANGLE_AREA_MAXIMUM OPEN_BRACKET arg_list CLOSE_BRACKET
+         {:
+         System.out.println("Funcion triangle - metodo");
          IntermediateCodeGenerator.getInstance().addToken("triangleAreaMaximum");
          :};
 
 /* NUEVO: unarios (para -n, +n, etc.) */
-factor ::= PLUS factor {: 
-         System.out.println("unario +"); 
+factor ::= PLUS factor {:
+         System.out.println("unario +");
          IntermediateCodeGenerator.getInstance().addToken("+");
          :};
-factor ::= SUB  factor {: 
-         System.out.println("unario -"); 
+factor ::= SUB  factor {:
+         System.out.println("unario -");
          IntermediateCodeGenerator.getInstance().addToken("-");
          :};
 
 
-read    ::= READ OPEN_BRACKET IDENTIFIER:id CLOSE_BRACKET 
-         {: 
-         System.out.println("READ"); 
-         IntermediateCodeGenerator.getInstance().addToken(id.toString()); 
+read    ::= READ OPEN_BRACKET IDENTIFIER:id CLOSE_BRACKET
+         {:
+         System.out.println("READ");
+         IntermediateCodeGenerator.getInstance().addToken(id.toString());
          IntermediateCodeGenerator.getInstance().addToken("READ");
          :};
 
-write   ::= WRITE OPEN_BRACKET IDENTIFIER:id CLOSE_BRACKET 
-         {: 
-         System.out.println("WRITE"); 
-         IntermediateCodeGenerator.getInstance().addToken(id.toString()); 
+write   ::= WRITE OPEN_BRACKET IDENTIFIER:id CLOSE_BRACKET
+         {:
+         System.out.println("WRITE");
+         IntermediateCodeGenerator.getInstance().addToken(id.toString());
          IntermediateCodeGenerator.getInstance().addToken("WRITE");
          :};
 
-write   ::= WRITE OPEN_BRACKET TEXT:text CLOSE_BRACKET 
-         {: 
-         System.out.println("WRITE"); 
+write   ::= WRITE OPEN_BRACKET TEXT:text CLOSE_BRACKET
+         {:
+         System.out.println("WRITE");
          IntermediateCodeGenerator.getInstance().addToken(text.toString());
          IntermediateCodeGenerator.getInstance().addToken("WRITE");
          :};
 
 //Funcion triangle
-arg_list ::= triangle:t1 SEMICOLON triangle:t2 
-            {: 
-            System.out.println("TRIANGLE_AREA_MAXIMUM - calculando areas de 2 triangulos");           
-            IntermediateCodeGenerator gen = IntermediateCodeGenerator.getInstance();       
+arg_list ::= triangle:t1 SEMICOLON triangle:t2
+            {:
+            System.out.println("TRIANGLE_AREA_MAXIMUM - calculando areas de 2 triangulos");
+            IntermediateCodeGenerator gen = IntermediateCodeGenerator.getInstance();
             gen.addToken("TRIANGLE_AREA_CALC");
             System.out.println("TRIANGLE_AREA_MAXIMUM - codigo generado");
             :};
-triangle ::= OPEN_SQUARE coords:c1 SEMICOLON coords:c2 SEMICOLON coords:c3 CLOSE_SQUARE 
-            {: 
-            System.out.println("Triangulo con 3 coordenadas"); 
+triangle ::= OPEN_SQUARE coords:c1 SEMICOLON coords:c2 SEMICOLON coords:c3 CLOSE_SQUARE
+            {:
+            System.out.println("Triangulo con 3 coordenadas");
             java.util.List result = new java.util.ArrayList();
             RESULT = result;
             :};
-coords ::= expression:x COMMA expression:y 
-          {: 
-          System.out.println("Coordenada procesada"); 
+coords ::= expression:x COMMA expression:y
+          {:
+          System.out.println("Coordenada procesada");
           java.util.List result = new java.util.ArrayList();
           RESULT = result;
           :};
