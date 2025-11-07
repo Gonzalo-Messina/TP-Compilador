@@ -1,7 +1,5 @@
 package lyc.compiler.files;
 
-import lyc.compiler.model.CompilerException;
-import lyc.compiler.model.InvalidLabelException;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -77,7 +75,7 @@ public class IntermediateCodeGenerator implements FileGenerator {
 
         // 3. Modifica el token. El formato será "POSICIÓN"
         this.rpnCode.set(indexToPatch, targetIndex);
-        System.out.println("PATCHED: Índice " + indexToPatch + " => " + targetIndex);
+        System.out.println("PATCHED: Indice " + indexToPatch + " => " + targetIndex);
     }
 
     // Los métodos newLabel, markLabelUsed, isLabelUsed, optimizeLabels, validateLabelFlow se eliminan.
@@ -88,7 +86,7 @@ public class IntermediateCodeGenerator implements FileGenerator {
         // No hay optimización ni validación de etiquetas, ya que no se usan.
 
         // Escribe el título o cabecera del código intermedio
-        fileWriter.write("Código Intermedio (Notación Polaca Inversa con Índices)\n");
+        fileWriter.write("Código Intermedio (Notación Polaca Inversa)\n");
         fileWriter.write("------------------------------------------------------\n");
 
         // Itera sobre la lista de tokens RPN acumulados y los escribe en el archivo
