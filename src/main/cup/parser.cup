@@ -127,6 +127,9 @@ non terminal Integer marker_M;
 // Ahora devuelve un Integer (posición de inicio del bucle)
 non terminal Integer while_start;
 
+// NUEVO: No terminal intermedio para manejar OR correctamente
+non terminal java.util.List or_intermediate;
+
 
 // --- PRECEDENCIA PARA OPERADORES LÓGICOS ---
 // Definir la precedencia resuelve los conflictos Shift/Reduce y Reduce/Reduce.
@@ -169,23 +172,30 @@ if_header ::= IF OPEN_BRACKET condition:c_falseList CLOSE_BRACKET
             :};
 
 // IF SIMPLE
-if_statement ::= if_header:falseList OPEN_BRACE sentence_list CLOSE_BRACE
+if_statement ::= if_header:falseList OPEN_BRACE marker_M:inicio_cuerpo sentence_list CLOSE_BRACE
                 {:
                     System.out.println("IF");
                     // Obtenemos la lista de placeholders a parchear
                     java.util.List<Integer> placeholders = (java.util.List<Integer>) falseList;
 
-                    // El destino es el final del IF
+                    // inicio_cuerpo = posición de inicio del cuerpo del IF
+                    // fin_if_pos = posición al final del IF (fuera)
                     int fin_if_pos = getNextIndex();
 
-                    // Parcheamos *todos* los saltos en la lista
+                    // Parcheamos la lista separando true jumps de false jumps
                     for(int placeholder : placeholders) {
-                        backpatch(placeholder, fin_if_pos);
+                        if (placeholder < 0) {
+                            // Índice negativo = true jump (del OR), debe ir al inicio del cuerpo
+                            backpatch(-placeholder, inicio_cuerpo);
+                        } else {
+                            // Índice positivo = false jump, debe ir al final (fuera del IF)
+                            backpatch(placeholder, fin_if_pos);
+                        }
                     }
                 :};
 
 // IF-ELSE
-if_statement ::= if_header:falseList OPEN_BRACE sentence_list:then_part CLOSE_BRACE
+if_statement ::= if_header:falseList OPEN_BRACE marker_M:inicio_then sentence_list:then_part CLOSE_BRACE
                 {:
                     System.out.println("IF-ELSE - Final del THEN");
                     // Obtenemos la "false list" (saltos al ELSE) de la cabecera
@@ -200,9 +210,15 @@ if_statement ::= if_header:falseList OPEN_BRACE sentence_list:then_part CLOSE_BR
                     // 3. El inicio del ELSE es el índice de la siguiente instrucción.
                     int else_start_pos = getNextIndex();
 
-                    // 4. Parcheamos la "false list" (de 'condition') para que salte al ELSE
+                    // 4. Parcheamos la lista separando true jumps (OR) de false jumps
                     for(int placeholder : placeholders_sino) {
-                        backpatch(placeholder, else_start_pos);
+                        if (placeholder < 0) {
+                            // Índice negativo = true jump (del OR), debe ir al inicio del THEN
+                            backpatch(-placeholder, inicio_then);
+                        } else {
+                            // Índice positivo = false jump, debe ir al ELSE
+                            backpatch(placeholder, else_start_pos);
+                        }
                     }
 
                     // 5. Devolvemos el placeholder del BI (fin_if_placeholder)
@@ -244,7 +260,7 @@ while_header ::= while_start:inicio_pos condition:c_falseList CLOSE_BRACKET
                     RESULT = resultList;
                 :};
 
-while_statement ::= while_header:header_info OPEN_BRACE sentence_list:body CLOSE_BRACE
+while_statement ::= while_header:header_info OPEN_BRACE marker_M:inicio_cuerpo sentence_list:body CLOSE_BRACE
                 {:
                     // Desempaquetamos la información
                     java.util.List info = (java.util.List) header_info;
@@ -259,9 +275,15 @@ while_statement ::= while_header:header_info OPEN_BRACE sentence_list:body CLOSE
                     // 3. El destino final (fuera del bucle)
                     int fin_pos = getNextIndex();
 
-                    // 4. Parcheamos la "false list" para que salte a fin_pos.
+                    // 4. Parcheamos la lista separando true jumps (OR) de false jumps
                     for(int placeholder : falseList) {
-                        backpatch(placeholder, fin_pos);
+                        if (placeholder < 0) {
+                            // Índice negativo = true jump (del OR), debe ir al inicio del cuerpo
+                            backpatch(-placeholder, inicio_cuerpo);
+                        } else {
+                            // Índice positivo = false jump, debe ir fuera del bucle
+                            backpatch(placeholder, fin_pos);
+                        }
                     }
                 :};
 
@@ -300,25 +322,59 @@ condition ::= condition:c1 AND condition:c2
                 RESULT = c1_falseList; // Devolvemos la lista unida
             :};
 
-// Lógica OR (Short-circuit)
-// CAMBIO: 'marker_M' se movió a DESPUÉS del 'OR'
-condition ::= condition:c1 OR marker_M:m_pos condition:c2
+// Lógica OR (Short-circuit) - CORREGIDO v2
+// Para OR necesitamos generar saltos cuando la condición es VERDADERA, no FALSA
+or_intermediate ::= simple_condition:jumpType OR
+                    {:
+                        System.out.println("OR - Paso intermedio");
+                        
+                        // Para OR: Invertir el salto para que salte cuando es VERDADERO
+                        // Ej: si tenemos "a < b", jumpType es "BGE" (salto negado)
+                        // Lo invertimos a "BLT" para que salte cuando a < b es VERDADERO
+                        String trueJump = invertJump(jumpType);
+                        
+                        // Generar el salto condicional VERDADERO (salta al cuerpo si c1 es verdadero)
+                        IntermediateCodeGenerator.getInstance().addToken(trueJump);
+                        int true_placeholder = generatePlaceholder();
+                        
+                        // Empaquetar el placeholder del salto verdadero para la siguiente etapa
+                        java.util.List result = new java.util.ArrayList();
+                        result.add(true_placeholder);
+                        RESULT = result;
+                    :};
+
+// Paso 2: Evaluar c2 y devolver las listas correctas
+condition ::= or_intermediate:inter condition:c2
             {:
-                System.out.println("Condicion OR");
-                // Si c1 es F, debe saltar a c2.
-                // Si c2 es F, debe saltar al fin (ELSE).
+                System.out.println("Condicion OR - Completando");
                 
-                java.util.List<Integer> c1_falseList = (java.util.List<Integer>) c1;
+                // Desempaquetar la información del paso intermedio
+                java.util.List info = (java.util.List) inter;
+                int c1_true_placeholder = (Integer) info.get(0);
                 java.util.List<Integer> c2_falseList = (java.util.List<Integer>) c2;
                 
-                // 1. Parcheamos la "falseList" de c1 para que salte al inicio de c2 (m_pos)
-                for(int index : c1_falseList) {
-                    backpatch(index, m_pos);
-                }
-
-                // 2. La nueva "falseList" total (la que saltará al ELSE)
-                //    es *solo* la de c2.
-                RESULT = c2_falseList;
+                // Para OR:
+                // - Si c1 es VERDADERO: salta al cuerpo (c1_true_placeholder)
+                // - Si c1 es FALSO: evalúa c2
+                // - Si c2 es VERDADERO: ejecuta el cuerpo
+                // - Si c2 es FALSO: salta fuera (c2_falseList)
+                
+                // La "falseList" del OR es:
+                // - El true_placeholder de c1 (que debe ir al cuerpo cuando se parchee)
+                // - La falseList de c2 (que debe ir fuera cuando se parchee)
+                
+                // PERO: tenemos un problema arquitectural. 
+                // Necesitamos devolver TANTO los saltos al cuerpo como los saltos fuera.
+                // Como solo podemos devolver falseList, creamos una lista especial.
+                
+                // Solución: Crear una nueva lista que contenga:
+                // - Índice negativo para indicar que es un "trueJump" (debe ir al cuerpo)
+                // - Índices normales de c2_falseList
+                java.util.List<Integer> resultList = new java.util.ArrayList<>();
+                resultList.add(-c1_true_placeholder); // Negativo = true jump
+                resultList.addAll(c2_falseList);
+                
+                RESULT = resultList;
             :};
 
 // CAMBIO: Regla 'NOT' ahora invierte la lógica de salto

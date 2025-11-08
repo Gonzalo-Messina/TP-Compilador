@@ -11,3 +11,4 @@ public class UnknownCharacterException extends CompilerException {
     super("Unknown character « " + unknownInput + " »");
   }
 }
+
