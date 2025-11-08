@@ -90,9 +90,9 @@ non terminal program;
 non terminal sentence_list;
 non terminal sentence;
 non terminal assignment;
-non terminal expression;
-non terminal term;
-non terminal factor;
+non terminal String expression;
+non terminal String term;
+non terminal String factor;
 non terminal read;
 non terminal write;
 
@@ -398,37 +398,101 @@ condition ::= NOT simple_condition:jumpType
             :};
 
 
-simple_condition ::= expression GT expression
+simple_condition ::= expression:e1 GT expression:e2
                     {:
                         System.out.println(">");
+                        // ✅ VALIDAR TIPOS: Solo se pueden comparar tipos numéricos
+                        if (!e1.equals("Int") && !e1.equals("Float")) {
+                            throw new lyc.compiler.model.TypeMismatchException(
+                                "Cannot apply '>' to non-numeric type '" + e1 + "'"
+                            );
+                        }
+                        if (!e2.equals("Int") && !e2.equals("Float")) {
+                            throw new lyc.compiler.model.TypeMismatchException(
+                                "Cannot apply '>' to non-numeric type '" + e2 + "'"
+                            );
+                        }
                         IntermediateCodeGenerator.getInstance().addToken("CMP");
                         RESULT = "BLE"; // Devuelve el salto *negado*
                     :};
 
-simple_condition ::= expression LT expression
+simple_condition ::= expression:e1 LT expression:e2
                     {:
                         System.out.println("<");
+                        // ✅ VALIDAR TIPOS: Solo se pueden comparar tipos numéricos
+                        if (!e1.equals("Int") && !e1.equals("Float")) {
+                            throw new lyc.compiler.model.TypeMismatchException(
+                                "Cannot apply '<' to non-numeric type '" + e1 + "'"
+                            );
+                        }
+                        if (!e2.equals("Int") && !e2.equals("Float")) {
+                            throw new lyc.compiler.model.TypeMismatchException(
+                                "Cannot apply '<' to non-numeric type '" + e2 + "'"
+                            );
+                        }
                         IntermediateCodeGenerator.getInstance().addToken("CMP");
                         RESULT = "BGE"; // Devuelve el salto *negado*
                     :};
 
-simple_condition ::= expression GE expression
+simple_condition ::= expression:e1 GE expression:e2
                     {:
                         System.out.println(">=");
+                        // ✅ VALIDAR TIPOS: Solo se pueden comparar tipos numéricos
+                        if (!e1.equals("Int") && !e1.equals("Float")) {
+                            throw new lyc.compiler.model.TypeMismatchException(
+                                "Cannot apply '>=' to non-numeric type '" + e1 + "'"
+                            );
+                        }
+                        if (!e2.equals("Int") && !e2.equals("Float")) {
+                            throw new lyc.compiler.model.TypeMismatchException(
+                                "Cannot apply '>=' to non-numeric type '" + e2 + "'"
+                            );
+                        }
                         IntermediateCodeGenerator.getInstance().addToken("CMP");
                         RESULT = "BLT"; // Devuelve el salto *negado*
                     :};
 
-simple_condition ::= expression LE expression
+simple_condition ::= expression:e1 LE expression:e2
                     {:
                         System.out.println("<=");
+                        // ✅ VALIDAR TIPOS: Solo se pueden comparar tipos numéricos
+                        if (!e1.equals("Int") && !e1.equals("Float")) {
+                            throw new lyc.compiler.model.TypeMismatchException(
+                                "Cannot apply '<=' to non-numeric type '" + e1 + "'"
+                            );
+                        }
+                        if (!e2.equals("Int") && !e2.equals("Float")) {
+                            throw new lyc.compiler.model.TypeMismatchException(
+                                "Cannot apply '<=' to non-numeric type '" + e2 + "'"
+                            );
+                        }
                         IntermediateCodeGenerator.getInstance().addToken("CMP");
                         RESULT = "BGT"; // Devuelve el salto *negado*
                     :};
 
-simple_condition ::= expression EQ expression
+simple_condition ::= expression:e1 EQ expression:e2
                     {:
                         System.out.println("=");
+                        // ✅ VALIDAR TIPOS: Los operandos deben ser del mismo tipo o compatibles
+                        boolean compatible = false;
+                        
+                        // Tipos idénticos: siempre compatible
+                        if (e1.equals(e2)) {
+                            compatible = true;
+                        }
+                        // Int y Float son compatibles entre sí para comparación
+                        else if ((e1.equals("Int") || e1.equals("Float")) && 
+                                 (e2.equals("Int") || e2.equals("Float"))) {
+                            compatible = true;
+                        }
+                        
+                        if (!compatible) {
+                            throw new lyc.compiler.model.TypeMismatchException(
+                                "Cannot compare expression of type '" + e1 + 
+                                "' with expression of type '" + e2 + "'"
+                            );
+                        }
+                        
                         IntermediateCodeGenerator.getInstance().addToken("CMP");
                         RESULT = "BNE"; // Devuelve el salto *negado*
                     :};
@@ -436,6 +500,12 @@ simple_condition ::= expression EQ expression
 simple_condition ::= IS_ZERO OPEN_BRACKET expression:exp CLOSE_BRACKET
                     {:
                         System.out.println("IS_ZERO_CONDITION");
+                        // ✅ VALIDAR TIPOS: IS_ZERO solo aplica a tipos numéricos
+                        if (!exp.equals("Int") && !exp.equals("Float")) {
+                            throw new lyc.compiler.model.TypeMismatchException(
+                                "Cannot apply 'isZero' to non-numeric type '" + exp + "'"
+                            );
+                        }
                         IntermediateCodeGenerator.getInstance().addToken("0");
                         IntermediateCodeGenerator.getInstance().addToken("CMP");
                         RESULT = "BNE"; // Salta si NO es cero
@@ -481,89 +551,181 @@ id_list ::= IDENTIFIER:id
 
 // --- ASIGNACIÓN Y EXPRESIONES ARITMÉTICAS ---
 
-assignment ::= IDENTIFIER:id ASSIG expression
+assignment ::= IDENTIFIER:id ASSIG expression:exprType
             {:
             System.out.println("Assignment");
             // VALIDACIÓN: Verificar que la variable esté declarada
             if (!lyc.compiler.files.SymbolTableGenerator.getInstance().isVariableDeclared(id.toString())) {
                 throw new lyc.compiler.model.UnknownVariableException("Variable '" + id + "' no fue declarada");
             }
-            // VALIDACIÓN: Verificar compatibilidad de tipos básica
+            
+            // VALIDACIÓN: Verificar compatibilidad de tipos
             String variableType = lyc.compiler.files.SymbolTableGenerator.getInstance().getVariableType(id.toString());
-            if (variableType != null) {
-                // Verificar si la expresión es compatible con el tipo de variable
-                // Esta es una validación básica - se puede expandir
-                System.out.println("Validando tipo de variable: " + variableType);
+            System.out.println("Validando tipo de variable: " + variableType + " con expresion de tipo: " + exprType);
+            
+            if (variableType != null && exprType != null) {
+                // Reglas de compatibilidad:
+                // 1. Tipos exactos deben coincidir (Int = Int, String = String)
+                // 2. Int puede asignarse a Float (promoción implícita)
+                boolean compatible = false;
+                
+                if (variableType.equals(exprType)) {
+                    // Tipos idénticos: siempre compatible
+                    compatible = true;
+                } else if (variableType.equals("Float") && exprType.equals("Int")) {
+                    // Int puede asignarse a Float (promoción)
+                    compatible = true;
+                }
+                
+                if (!compatible) {
+                    throw new lyc.compiler.model.TypeMismatchException(
+                        "Cannot assign expression of type '" + exprType + "' to variable '" + 
+                        id + "' of type '" + variableType + "'"
+                    );
+                }
             }
+            
             IntermediateCodeGenerator.getInstance().addToken(id.toString());
             IntermediateCodeGenerator.getInstance().addToken(":=");
             :};
 
-expression ::= expression PLUS term
+expression ::= expression:e PLUS term:t
             {:
             System.out.println("+");
             IntermediateCodeGenerator.getInstance().addToken("+");
+            // Validar que ambos operandos sean numéricos
+            if (!e.equals("Int") && !e.equals("Float")) {
+                throw new lyc.compiler.model.TypeMismatchException("Cannot apply '+' to non-numeric type '" + e + "'");
+            }
+            if (!t.equals("Int") && !t.equals("Float")) {
+                throw new lyc.compiler.model.TypeMismatchException("Cannot apply '+' to non-numeric type '" + t + "'");
+            }
+            // Si alguno es Float, el resultado es Float
+            RESULT = (e.equals("Float") || t.equals("Float")) ? "Float" : "Int";
             :};
-expression ::= expression SUB term
+            
+expression ::= expression:e SUB term:t
             {:
             System.out.println("-");
             IntermediateCodeGenerator.getInstance().addToken("-");
+            // Validar que ambos operandos sean numéricos
+            if (!e.equals("Int") && !e.equals("Float")) {
+                throw new lyc.compiler.model.TypeMismatchException("Cannot apply '-' to non-numeric type '" + e + "'");
+            }
+            if (!t.equals("Int") && !t.equals("Float")) {
+                throw new lyc.compiler.model.TypeMismatchException("Cannot apply '-' to non-numeric type '" + t + "'");
+            }
+            // Si alguno es Float, el resultado es Float
+            RESULT = (e.equals("Float") || t.equals("Float")) ? "Float" : "Int";
             :};
 
-expression ::= term {: System.out.println("Expression = Term"); :};
+expression ::= term:t 
+            {: 
+            System.out.println("Expression = Term");
+            RESULT = t;
+            :};
 
-term ::= term MULT factor
+term ::= term:t MULT factor:f
     {:
     System.out.println("*");
     IntermediateCodeGenerator.getInstance().addToken("*");
+    // Validar que ambos operandos sean numéricos
+    if (!t.equals("Int") && !t.equals("Float")) {
+        throw new lyc.compiler.model.TypeMismatchException("Cannot apply '*' to non-numeric type '" + t + "'");
+    }
+    if (!f.equals("Int") && !f.equals("Float")) {
+        throw new lyc.compiler.model.TypeMismatchException("Cannot apply '*' to non-numeric type '" + f + "'");
+    }
+    // Si alguno es Float, el resultado es Float
+    RESULT = (t.equals("Float") || f.equals("Float")) ? "Float" : "Int";
     :};
 
-term ::= term DIV factor
+term ::= term:t DIV factor:f
     {:
     System.out.println("/");
     IntermediateCodeGenerator.getInstance().addToken("/");
+    // Validar que ambos operandos sean numéricos
+    if (!t.equals("Int") && !t.equals("Float")) {
+        throw new lyc.compiler.model.TypeMismatchException("Cannot apply '/' to non-numeric type '" + t + "'");
+    }
+    if (!f.equals("Int") && !f.equals("Float")) {
+        throw new lyc.compiler.model.TypeMismatchException("Cannot apply '/' to non-numeric type '" + f + "'");
+    }
+    // Si alguno es Float, el resultado es Float
+    RESULT = (t.equals("Float") || f.equals("Float")) ? "Float" : "Int";
     :};
 
-term ::= factor {: System.out.println("Term = factor"); :};
+term ::= factor:f 
+    {: 
+    System.out.println("Term = factor");
+    RESULT = f;
+    :};
 
 factor ::= IDENTIFIER:id
         {:
         System.out.println("Id: " + id);
         IntermediateCodeGenerator.getInstance().addToken(id.toString());
+        // Obtener el tipo de la variable desde la tabla de símbolos
+        String idType = lyc.compiler.files.SymbolTableGenerator.getInstance().getVariableType(id.toString());
+        if (idType == null) {
+            throw new lyc.compiler.model.UnknownVariableException("Variable '" + id + "' no fue declarada");
+        }
+        RESULT = idType;
         :};
+        
 factor ::= INTEGER_CONSTANT:int_const
         {:
         System.out.println("Integer: " + int_const );
         IntermediateCodeGenerator.getInstance().addToken(int_const.toString());
+        RESULT = "Int";
         :};
 
 factor ::= FLOAT_CONSTANT:float_const
         {:
         System.out.println("Float: " + float_const );
         IntermediateCodeGenerator.getInstance().addToken(float_const.toString());
+        RESULT = "Float";
         :};
 
 factor ::= TEXT:string_const
         {:
         System.out.println("String: " + string_const);
         IntermediateCodeGenerator.getInstance().addToken(string_const.toString());
+        RESULT = "String";
         :};
 
-factor ::= OPEN_BRACKET expression CLOSE_BRACKET {: System.out.println("Factor = (Expression)"); :};
+factor ::= OPEN_BRACKET expression:e CLOSE_BRACKET 
+        {: 
+        System.out.println("Factor = (Expression)");
+        RESULT = e;
+        :};
+        
 factor ::= TRIANGLE_AREA_MAXIMUM OPEN_BRACKET arg_list CLOSE_BRACKET
         {:
         System.out.println("Funcion triangle - metodo");
         IntermediateCodeGenerator.getInstance().addToken("triangleAreaMaximum");
+        RESULT = "Float"; // La función devuelve Float
         :};
 
 /* NUEVO: unarios (para -n, +n, etc.) */
-factor ::= PLUS factor {:
+factor ::= PLUS factor:f 
+        {:
         System.out.println("unario +");
         IntermediateCodeGenerator.getInstance().addToken("+");
+        if (!f.equals("Int") && !f.equals("Float")) {
+            throw new lyc.compiler.model.TypeMismatchException("Cannot apply unary '+' to non-numeric type '" + f + "'");
+        }
+        RESULT = f;
         :};
-factor ::= SUB  factor {:
+        
+factor ::= SUB factor:f 
+        {:
         System.out.println("unario -");
         IntermediateCodeGenerator.getInstance().addToken("-");
+        if (!f.equals("Int") && !f.equals("Float")) {
+            throw new lyc.compiler.model.TypeMismatchException("Cannot apply unary '-' to non-numeric type '" + f + "'");
+        }
+        RESULT = f;
         :};
 
 

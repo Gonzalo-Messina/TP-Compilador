@@ -1,16 +1,17 @@
 #+ Declaracion de variables en bloque Init +#
 
+
 init {
-    a, b, c : Int
+    varInt1: Int
+    varFloat1 : Float
+    varStr : String
 }
+varInt1 := 2
+varStr := "Hola"
+varFloat1 := 2.6
 
-a := 15
-b := 60
-c := 1
-
-while (a >= b AND b >= c)
+if (varInt1 <= varFloat1 AND varInt1 >= varFloat1) 
 {
-    write ("Entro al while")
+    write("Condición compuesta AND")
 }
 
-a := 2
