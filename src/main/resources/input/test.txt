@@ -2,16 +2,11 @@
 
 
 init {
-    varInt1: Int
-    varFloat1 : Float
-    varStr : String
-}
-varInt1 := 2
-varStr := "Hola"
-varFloat1 := 2.6
+    x,areaMax : Float
+    z : Int
 
-if (varInt1 <= varFloat1 AND varInt1 >= varFloat1) 
-{
-    write("Condición compuesta AND")
 }
 
+z := 2
+x := 3.8
+areaMax := triangleAreaMaximum( [0,x; 4.0,12; 2.5,3] ; [x,0; 6,0; z,2] ) 

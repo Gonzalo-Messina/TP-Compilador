@@ -55,6 +55,11 @@ public class IntermediateCodeGenerator implements FileGenerator {
         return this.rpnCode.size();
     }
 
+    public List<String> getRpnCode() {
+        //Devuelve la lista completa de tokens RPN generados.
+        return this.rpnCode;
+    }
+
     /**
      * Parchea un marcador de posición de salto con un índice de destino real.
      * Usado por las acciones semánticas de IF y WHILE.
@@ -86,7 +91,7 @@ public class IntermediateCodeGenerator implements FileGenerator {
         // No hay optimización ni validación de etiquetas, ya que no se usan.
 
         // Escribe el título o cabecera del código intermedio
-        fileWriter.write("Código Intermedio (Notación Polaca Inversa)\n");
+        fileWriter.write("Código Intermedio (Notación Polaca Inversa con Índices)\n");
         fileWriter.write("------------------------------------------------------\n");
 
         // Itera sobre la lista de tokens RPN acumulados y los escribe en el archivo

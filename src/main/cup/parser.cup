@@ -703,8 +703,7 @@ factor ::= OPEN_BRACKET expression:e CLOSE_BRACKET
 factor ::= TRIANGLE_AREA_MAXIMUM OPEN_BRACKET arg_list CLOSE_BRACKET
         {:
         System.out.println("Funcion triangle - metodo");
-        IntermediateCodeGenerator.getInstance().addToken("triangleAreaMaximum");
-        RESULT = "Float"; // La función devuelve Float
+ 
         :};
 
 /* NUEVO: unarios (para -n, +n, etc.) */
@@ -751,22 +750,167 @@ write   ::= WRITE OPEN_BRACKET TEXT:text CLOSE_BRACKET
         :};
 
 //Funcion triangle
-arg_list ::= triangle:t1 SEMICOLON triangle:t2
-            {:
-            System.out.println("TRIANGLE_AREA_MAXIMUM - calculando areas de 2 triangulos");
-            IntermediateCodeGenerator gen = IntermediateCodeGenerator.getInstance();
-            gen.addToken("TRIANGLE_AREA_CALC");
-            System.out.println("TRIANGLE_AREA_MAXIMUM - codigo generado");
-            :};
-triangle ::= OPEN_SQUARE coords:c1 SEMICOLON coords:c2 SEMICOLON coords:c3 CLOSE_SQUARE
-            {:
-            System.out.println("Triangulo con 3 coordenadas");
-            java.util.List result = new java.util.ArrayList();
-            RESULT = result;
-            :};
+/* ------------------ COORDS ------------------ */
 coords ::= expression:x COMMA expression:y
-        {:
+    {:
         System.out.println("Coordenada procesada");
-        java.util.List result = new java.util.ArrayList();
-        RESULT = result;
-        :};
+        // VALIDAR TIPOS: ambas expresiones deben ser numéricas
+        if (!x.equals("Int") && !x.equals("Float")) {
+            throw new lyc.compiler.model.TypeMismatchException(
+                "Cannot use non-numeric type '" + x + "' as triangle coordinate"
+            );
+        }
+        if (!y.equals("Int") && !y.equals("Float")) {
+            throw new lyc.compiler.model.TypeMismatchException(
+                "Cannot use non-numeric type '" + y + "' as triangle coordinate"
+            );
+        }
+
+        // Devolvemos tipos por si queremos usarlo (no obligatorio)
+        java.util.List<String> coordTypes = new java.util.ArrayList<>();
+        coordTypes.add(x);
+        coordTypes.add(y);
+        RESULT = coordTypes;
+    :};
+
+/* ------------------ TRIANGLE ------------------
+   No emitimos tokens extra aquí: las expresiones ya empujaron x y y en la RPN.
+   Simplemente devolvemos una estructura que indica que hubo un triángulo
+*/
+triangle ::= OPEN_SQUARE coords:c1 SEMICOLON coords:c2 SEMICOLON coords:c3 CLOSE_SQUARE
+    {:
+        System.out.println("Triangulo con 3 coordenadas (parseado)");
+        java.util.List<java.util.List<String>> triangleTypes = new java.util.ArrayList<>();
+        triangleTypes.add((java.util.List<String>) c1);
+        triangleTypes.add((java.util.List<String>) c2);
+        triangleTypes.add((java.util.List<String>) c3);
+        RESULT = triangleTypes;
+    :};
+
+/* ------------------ ARG_LIST (generar RPN con primitivas) ------------------
+   Aquí transformamos los 6 valores que quedaron empujados en la RPN
+   para cada triángulo en temporales y generamos la fórmula del área
+   enteramente con operadores aritméticos + asignaciones + CMP + branch.
+*/
+arg_list ::= triangle:t1 SEMICOLON triangle:t2
+    {:
+        System.out.println("TRIANGLE_AREA_MAXIMUM - generando RPN primitiva");
+
+        IntermediateCodeGenerator gen = IntermediateCodeGenerator.getInstance();
+
+        // --- Para cada triángulo: tomar los 6 valores ya apilados y guardarlos en temporales.
+        // IMPORTANTE: por el orden de parseo, los 6 valores están en la pila en este orden:
+        //   x1 y1 x2 y2 x3 y3   (push sucesivos)  -> tope = y3
+        // Por eso extraemos/storamos en reversa: ty3 :=, tx3 :=, ty2 :=, tx2 :=, ty1 :=, tx1 :=
+
+        // TRIÁNGULO 1: crear nombres temporales
+        String tx1 = "t_x1_1"; String ty1 = "t_y1_1";
+        String tx2 = "t_x2_1"; String ty2 = "t_y2_1";
+        String tx3 = "t_x3_1"; String ty3 = "t_y3_1";
+        String area1 = "t_area_1";
+
+        // Asumimos que los 6 valores ya están en la RPN (si vienen de expresiones).
+        // Para "pop->store", en tu RPN el esquema es: <var> :=  (porque assignment consumes last expr)
+        // Entonces generamos los pares "var :=" en el orden correcto para consumir el stack.
+        gen.addToken(ty3); gen.addToken(":="); // consume y3
+        gen.addToken(tx3); gen.addToken(":="); // consume x3
+        gen.addToken(ty2); gen.addToken(":="); // consume y2
+        gen.addToken(tx2); gen.addToken(":="); // consume x2
+        gen.addToken(ty1); gen.addToken(":="); // consume y1
+        gen.addToken(tx1); gen.addToken(":="); // consume x1
+
+        // --- Generar expresión del determinante (RPN) usando temporales:
+        // area_raw = x1*(y2-y3) + x2*(y3-y1) + x3*(y1-y2)
+        // RPN:
+        // t_x1 t_y2 t_y3 - *   t_x2 t_y3 t_y1 - *  +   t_x3 t_y1 t_y2 - *  +
+
+        gen.addToken(tx1); gen.addToken(ty2); gen.addToken(ty3); gen.addToken("-"); gen.addToken("*");
+        gen.addToken(tx2); gen.addToken(ty3); gen.addToken(ty1); gen.addToken("-"); gen.addToken("*");
+        gen.addToken("+");
+        gen.addToken(tx3); gen.addToken(ty1); gen.addToken(ty2); gen.addToken("-"); gen.addToken("*");
+        gen.addToken("+");
+
+        // multiplicar por 0.5  ->  push 0.5 *
+        gen.addToken("0.5"); gen.addToken("*");
+
+        // almacenar en area1
+        gen.addToken(area1); gen.addToken(":=");
+
+        // --- ABS(area1) implementado con CMP y branch + multiplicacion por -1 si es negativo
+        // Comparar area1 con 0: area1 0 CMP BLT <placeholder_neg>
+        gen.addToken(area1); gen.addToken("0"); gen.addToken("CMP");
+        gen.addToken("BLT");
+        int negPlaceholder = generatePlaceholder(); // placeholder para salto al bloque negativo
+
+        // Parcheamos el placeholder para que apunte al inicio del bloque de negación:
+        // pero en este estilo, queremos que BLT salte AL BLOQUE DE NEGACIÓN que comienza
+        // justo en este punto (la siguiente instrucción). Por lo tanto parcheamos con getNextIndex().
+        backpatch(negPlaceholder, getNextIndex());
+
+        // Bloque de negación: area1 -1 * -> area1 :=
+        gen.addToken(area1); gen.addToken("-1"); gen.addToken("*");
+        gen.addToken(area1); gen.addToken(":=");
+
+        // (NOTA: no necesitamos salto incondicional al final porque si BLT no se cumple
+        // jamás se ejecutará la negación y la ejecución continúa normalmente)
+
+        // --- Ahora TRIÁNGULO 2: mismos pasos (usar sufijo _2)
+        String ux1 = "t_x1_2"; String uy1 = "t_y1_2";
+        String ux2 = "t_x2_2"; String uy2 = "t_y2_2";
+        String ux3 = "t_x3_2"; String uy3 = "t_y3_2";
+        String area2 = "t_area_2";
+
+        gen.addToken(uy3); gen.addToken(":="); // consume y3 (del segundo tri que ya estaba apilado)
+        gen.addToken(ux3); gen.addToken(":="); // consume x3
+        gen.addToken(uy2); gen.addToken(":="); // consume y2
+        gen.addToken(ux2); gen.addToken(":="); // consume x2
+        gen.addToken(uy1); gen.addToken(":="); // consume y1
+        gen.addToken(ux1); gen.addToken(":="); // consume x1
+
+        // area2 = ux1*(uy2-uy3) + ux2*(uy3-uy1) + ux3*(uy1-uy2)
+        gen.addToken(ux1); gen.addToken(uy2); gen.addToken(uy3); gen.addToken("-"); gen.addToken("*");
+        gen.addToken(ux2); gen.addToken(uy3); gen.addToken(uy1); gen.addToken("-"); gen.addToken("*");
+        gen.addToken("+");
+        gen.addToken(ux3); gen.addToken(uy1); gen.addToken(uy2); gen.addToken("-"); gen.addToken("*");
+        gen.addToken("+");
+        gen.addToken("0.5"); gen.addToken("*");
+        gen.addToken(area2); gen.addToken(":=");
+
+        // ABS(area2)
+        gen.addToken(area2); gen.addToken("0"); gen.addToken("CMP");
+        gen.addToken("BLT");
+        int negPlaceholder2 = generatePlaceholder();
+        backpatch(negPlaceholder2, getNextIndex());
+        gen.addToken(area2); gen.addToken("-1"); gen.addToken("*");
+        gen.addToken(area2); gen.addToken(":=");
+
+        // --- MAX(area1, area2) implementado con CMP + ramas
+        // Queremos:
+        // if (area1 >= area2) areaMax := area1
+        // else areaMax := area2
+
+        String areaMax = "t_area_max";
+        // empujar area1 area2 CMP BGE <placeholder_true>
+        gen.addToken(area1); gen.addToken(area2); gen.addToken("CMP");
+        gen.addToken("BGE");
+        int truePlaceholder = generatePlaceholder();
+
+        // ELSE: areaMax := area2
+        gen.addToken(area2); gen.addToken(areaMax); gen.addToken(":=");
+
+        // Salto incondicional para saltar la parte "true" después del else
+        gen.addToken("BI");
+        int endPlaceholder = generatePlaceholder();
+
+        // Parchear BGE para que apunte al inicio de la rama TRUE (ahora)
+        backpatch(truePlaceholder, getNextIndex());
+
+        // TRUE: areaMax := area1
+        gen.addToken(area1); gen.addToken(areaMax); gen.addToken(":=");
+
+        // parchar BI para que apunte al final (después del assignment true)
+        backpatch(endPlaceholder, getNextIndex());
+
+        System.out.println("TRIANGLE_AREA_MAXIMUM - RPN generada (primitivas).");
+        RESULT = null; // no devolvemos valor extra aquí; factor:: rule pondrá el tipo
+    :};
