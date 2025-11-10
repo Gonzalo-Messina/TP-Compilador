@@ -1,19 +1,21 @@
 package lyc.compiler.files;
 
-import lyc.compiler.model.CompilerException;
-import lyc.compiler.model.DuplicateVariableException;
-
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import lyc.compiler.model.CompilerException;
+import lyc.compiler.model.DuplicateVariableException;
+
 public class SymbolTableGenerator implements FileGenerator {
     private static SymbolTableGenerator symbolTable;
 
     // Mantengo LinkedHashMap para preservar orden de inserción (más prolijo en la salida)
     private final Map<String, SymbolTableData> symbols;
+
+    int tempCounter = 0;
 
     private SymbolTableGenerator() {
         this.symbols = new LinkedHashMap<>();
@@ -191,4 +193,26 @@ public class SymbolTableGenerator implements FileGenerator {
         SymbolTableData data = this.symbols.get(variableName);
         return data != null && data.getType() != null;
     }
+
+    // Esto es lo que AsmCodeGenerator necesita
+    public Map<String, SymbolTableData> getTable() {
+        return this.getInstance().symbols;
+    }
+
+    /*public String addTemp() {
+
+    tempCounter++;
+    String name = "@T" + tempCounter;
+
+    // Si ya existiera (no debería, pero por las dudas)
+    if (!symbols.containsKey(name)) {
+        SymbolTableData data = new SymbolTableData("Float", "", "8");
+        symbols.put(name, data);
+    }
+
+    return name;
+}*/
 }
+
+
+
