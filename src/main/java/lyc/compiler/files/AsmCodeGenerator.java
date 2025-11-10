@@ -40,7 +40,7 @@ public class AsmCodeGenerator implements FileGenerator {
         resetState();
 
         IntermediateCodeGenerator icg = IntermediateCodeGenerator.getInstance();
-        SymbolTableGenerator symbolTable = SymbolTableGenerator.getInstance();
+        lyc.compiler.files.SymbolTableGenerator symbolTable = lyc.compiler.files.SymbolTableGenerator.getInstance();
         List<String> rpn = icg.getRpnCode();
 
         // 2. Pre-análisis (Pasada 1): Detectar Jumps, Operandos y Strings

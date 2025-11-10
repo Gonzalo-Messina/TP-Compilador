@@ -13,7 +13,6 @@ class Parser;
 parser code {:
     // Pilas para gestionar los índices de salto que necesitan ser parcheados (backpatching).
     // Nota: Aunque la lógica de backpatching está en las acciones semánticas,
-    // se asume que IntermediateCodeGenerator tiene los métodos necesarios.
     private java.util.Stack<Integer> jumpToPatch = new java.util.Stack<>();
 
     // Utilidad: Devuelve el índice de la siguiente instrucción.
