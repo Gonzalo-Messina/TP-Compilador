@@ -2,11 +2,16 @@
 
 
 init {
-    x,areaMax : Float
-    z : Int
+    z, y, c : Int
 
 }
 
-z := 2
-x := 3.8
-areaMax := triangleAreaMaximum( [0,x; 4.0,12; 2.5,3] ; [x,0; 6,0; z,2] ) 
+z := 1
+y := 2
+
+while(z < y)
+{
+    write("Ingreso al if")
+}
+
+c := 6

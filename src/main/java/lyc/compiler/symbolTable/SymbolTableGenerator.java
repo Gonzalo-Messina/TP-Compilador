@@ -15,8 +15,6 @@ public class SymbolTableGenerator implements FileGenerator {
     // Mantengo LinkedHashMap para preservar orden de inserción (más prolijo en la salida)
     private final Map<String, SymbolTableData> symbols;
 
-    int tempCounter = 0;
-
     private SymbolTableGenerator() {
         this.symbols = new LinkedHashMap<>();
     }
@@ -199,19 +197,6 @@ public class SymbolTableGenerator implements FileGenerator {
         return this.getInstance().symbols;
     }
 
-    /*public String addTemp() {
-
-    tempCounter++;
-    String name = "@T" + tempCounter;
-
-    // Si ya existiera (no debería, pero por las dudas)
-    if (!symbols.containsKey(name)) {
-        SymbolTableData data = new SymbolTableData("Float", "", "8");
-        symbols.put(name, data);
-    }
-
-    return name;
-}*/
 }
 
 

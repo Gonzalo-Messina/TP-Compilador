@@ -4,16 +4,27 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.Stack;
 
 public class AsmCodeGenerator implements FileGenerator {
 
     private static AsmCodeGenerator instance;
 
-    // contador para temporales creadas por el ensamblador
+    // Contador para temporales creadas por el ensamblador
     private int tempCounter = 0;
 
-    private AsmCodeGenerator() {
-    }
+    // --- Estado para el pre-análisis ---
+    // Almacena todos los temporales (ej: @T1) que se necesitarán
+    private final Set<String> temporaries = new LinkedHashSet<>();
+    // Almacena todos los literales de string (ej: "hola") que se necesitarán
+    private final Set<String> stringLiterals = new LinkedHashSet<>();
+    // Almacena los índices de la RPN que son destinos de salto
+    private final Set<Integer> jumpTargets = new LinkedHashSet<>();
+    // Almacena los operandos (variables y constantes)
+    private final LinkedHashSet<String> operands = new LinkedHashSet<>();
+
+    private AsmCodeGenerator() {}
 
     public static AsmCodeGenerator getInstance() {
         if (instance == null) {
@@ -24,199 +35,272 @@ public class AsmCodeGenerator implements FileGenerator {
 
     @Override
     public void generate(FileWriter writer) throws IOException {
+
+        // 1. Reiniciar estado (si se genera varias veces)
+        resetState();
+
         IntermediateCodeGenerator icg = IntermediateCodeGenerator.getInstance();
         SymbolTableGenerator symbolTable = SymbolTableGenerator.getInstance();
-
-        // OJO: asumo que IntermediateCodeGenerator tiene un getter que devuelve la RPN.
-        // Si tu versión no lo tiene, hay que añadir:
-        //   public List<String> getRpnCode() { return Collections.unmodifiableList(this.rpnCode); }
         List<String> rpn = icg.getRpnCode();
 
-        // -------------------------------------------------------
-        // 1) Generar sección .data: recolectamos operandos desde la RPN
-        // -------------------------------------------------------
-        LinkedHashSet<String> operands = new LinkedHashSet<>();
-        for (String tok : rpn) {
-            if (isOperator(tok) || isControlToken(tok)) continue;
-            operands.add(tok);
-        }
+        // 2. Pre-análisis (Pasada 1): Detectar Jumps, Operandos y Strings
+        // (En una sola pasada)
+        performFirstPreScan(rpn);
 
-        // CABECERA ASM
+        // 3. Pre-análisis (Pasada 2): Simulación (Dry Run) para detectar Temporales
+        performTemporaryDiscovery(rpn);
+
+        // --------------------------
+        // Sección .MODEL / .DATA
+        // --------------------------
+        writer.write(".MODEL LARGE\n");
         writer.write(".386\n");
-        writer.write(".model flat, stdcall\n");
-        writer.write("include msvcrt.inc\n");
-        writer.write("includelib msvcrt.lib\n\n");
+        writer.write(".STACK 200h\n\n");
 
-        // SECCION DATA
-        writer.write(".data\n");
+        writer.write(".DATA\n");
 
-        // Primero registrar en la tabla las constantes detectadas (si es que no están)
+        // Registrar constantes numéricas en la tabla
         for (String op : operands) {
             if (isNumberLiteral(op)) {
-                // convencion: constantes con _<lexema>
-                // registramos la constante en la tabla de simbolos para que aparezca en la salida
+                // registra la constante con prefijo "_" y tipo Float
                 symbolTable.addToken(op, "Float", op);
             }
         }
 
-        // Ahora imprimimos .data en orden: variables/temps/constantes deducidas desde operands
-        // Nota: symbolTable no provee un getter público en tu versión, así que
-        // construimos la sección .data a partir del conjunto 'operands' que detectamos.
-        // Esto es suficiente para que el asm generado tenga las etiquetas usadas.
+        // Emisión de variables y constantes (detectadas en Pasada 1)
         for (String op : operands) {
             if (isNumberLiteral(op)) {
                 // constante → _<lexema> dd <valor>
-                String key = "_" + op;
-                writer.write(String.format("%-20s %-5s %s\n", key, "dd", op));
+                writer.write(String.format("_%s dd %s\n", op, op));
             } else {
-                // identificador o temporal → dd 0.0 (los temporales los registramos cuando se crean)
-                writer.write(String.format("%-20s %-5s %s\n", op, "dd", "0.0"));
+                // identificador → dd 0.0
+                writer.write(String.format("%s dd 0.0\n", op));
             }
         }
 
-        // Añadimos una etiqueta para newline si la querés (como en tu AssemblerManager)
-        writer.write(String.format("%-20s %-5s %s\n", "_NEWLINE", "db", "0DH,0AH"));
+        // Emisión de temporales (detectados en Pasada 2)
+        for (String tempName : temporaries) {
+            writer.write(String.format("%s dd 0.0\n", tempName));
+            // Registrarlos también en la tabla de símbolos
+            symbolTable.addToken(tempName);
+        }
 
-        writer.write("\n");
+        // Emisión de literales de string (detectados en Pasada 1)
+        for (String rawLiteral : stringLiterals) {
+            writer.write(getStringLiteralData(rawLiteral));
+        }
 
-        // SECCION CODE
-        writer.write(".code\n");
-        writer.write("start:\n");
+        // Buffer para textos de WRITE
+        writer.write("_NEWLINE db 0DH,0AH,0\n");
 
-        // inicializar coprocesador
-        writer.write("    finit\n\n");
+        // --------------------------
+        // Sección .CODE
+        // --------------------------
+        writer.write("\n.CODE\n");
+        writer.write("START:\n");
+        writer.write("    MOV AX, @DATA\n");
+        writer.write("    MOV DS, AX\n");
+        writer.write("    MOV ES, AX\n");
+        writer.write("    FINIT\n\n");
 
-        // -------------------------------------------------------
-        // 2) Traducir RPN a instrucciones FPU + temporales en .data
-        // -------------------------------------------------------
-        java.util.Stack<String> evalStack = new java.util.Stack<>();
+        Stack<String> evalStack = new Stack<>();
 
-        for (String token : rpn) {
+        // 4. Generación de Código (Pasada 3)
+        for (int pc = 0; pc < rpn.size(); pc++) {
 
+            // Emitir label si esta celda es destino de salto
+            if (jumpTargets.contains(pc)) {
+                writer.write(String.format("L%d:\n", pc));
+            }
+
+            String token = rpn.get(pc);
+
+            // WRITE (literal)
+            if (token.equals("WRITE")) {
+                if (evalStack.isEmpty()) {
+                    throw new RuntimeException("RPN inválida: 'WRITE' sin operando en la pila en pc=" + pc);
+                }
+                String stringToPrint = evalStack.pop(); // <--- MODIFICADO
+                // (Corregido) Solo obtenemos el label, ya fue definido en .data
+                String label = getStringLiteralLabel(stringToPrint); // <--- MODIFICADO
+                writer.write("    MOV DX, OFFSET " + label + "\n");
+                writer.write("    MOV AH, 09h\n");
+                writer.write("    INT 21h\n");
+                writer.write("    MOV DX, OFFSET _NEWLINE\n");
+                writer.write("    MOV AH, 09h\n");
+                writer.write("    INT 21h\n\n");
+                // pc++; // (REMOVIDO)
+                continue;
+            }
+
+            // Aritméticos
             if (isArithmeticOperator(token)) {
-                // Sacamos operandos (op1 op2)
+                if (evalStack.size() < 2) {
+                    throw new RuntimeException("RPN inválida: operador aritmético sin suficientes operandos en pc=" + pc);
+                }
                 String op2 = evalStack.pop();
                 String op1 = evalStack.pop();
 
+                // (Corregido) Obtenemos el nombre del temp, ya fue declarado en .data
+                String aux = generateTempName();
+
+                writer.write(String.format("    FLD %s\n", op1));
+                writer.write(String.format("    FLD %s\n", op2));
+
                 switch (token) {
-                    case "+":
-                    {
-                        String aux = generateTempAndRegister();
-                        // FLD op1; FLD op2; FADD; FSTP aux
-                        writer.write(String.format("    fld %s\n", op1));
-                        writer.write(String.format("    fld %s\n", op2));
-                        writer.write("    fadd\n");
-                        writer.write(String.format("    fstp %s\n", aux));
-                        writer.write("\n");
-                        evalStack.push(aux);
-                        break;
-                    }
-                    case "-":
-                    {
-                        String aux = generateTempAndRegister();
-                        writer.write(String.format("    fld %s\n", op1));
-                        writer.write(String.format("    fld %s\n", op2));
-                        writer.write("    fsub\n");
-                        writer.write(String.format("    fstp %s\n", aux));
-                        writer.write("\n");
-                        evalStack.push(aux);
-                        break;
-                    }
-                    case "*":
-                    {
-                        String aux = generateTempAndRegister();
-                        writer.write(String.format("    fld %s\n", op1));
-                        writer.write(String.format("    fld %s\n", op2));
-                        writer.write("    fmul\n");
-                        writer.write(String.format("    fstp %s\n", aux));
-                        writer.write("\n");
-                        evalStack.push(aux);
-                        break;
-                    }
-                    case "/":
-                    {
-                        String aux = generateTempAndRegister();
-                        writer.write(String.format("    fld %s\n", op1));
-                        writer.write(String.format("    fld %s\n", op2));
-                        writer.write("    fdiv\n");
-                        writer.write(String.format("    fstp %s\n", aux));
-                        writer.write("\n");
-                        evalStack.push(aux);
-                        break;
-                    }
-                    default:
-                        // no debería entrar
-                        break;
+                    case "+": writer.write("    FADD\n"); break;
+                    case "-": writer.write("    FSUB\n"); break;
+                    case "*": writer.write("    FMUL\n"); break;
+                    case "/": writer.write("    FDIV\n"); break;
                 }
+
+                writer.write(String.format("    FSTP %s\n\n", aux));
+                evalStack.push(aux);
+                continue;
             }
-            else if (token.equals(":=")) {
-                // asignación: op1 op2 :=   -> op2 := op1
-                String dst = evalStack.pop(); // where
-                String src = evalStack.pop(); // value
-                // FLD src; FSTP dst
-                writer.write(String.format("    fld %s\n", src));
-                writer.write(String.format("    fstp %s\n", dst));
-                writer.write("\n");
+
+            // Asignación (Asume RPN: <valor_fuente> <variable_destino> :=)
+            if (token.equals(":=")) {
+                if (evalStack.size() < 2) {
+                    throw new RuntimeException("RPN inválida: ':=' sin suficientes operandos en pc=" + pc);
+                }
+                // El orden es importante
+                String dst = evalStack.pop(); // variable destino
+                String src = evalStack.pop(); // valor fuente
+                writer.write(String.format("    FLD %s\n", src));
+                writer.write(String.format("    FSTP %s\n\n", dst));
+                continue;
             }
-            else if (isComparisonOrBranch(token)) {
-                // CMP / BLT / BGE / etc. están en la RPN como tokens separados.
-                // Para CMP: necesitamos tomar dos operandos y emitir la secuencia FPU -> SAHF
-                if (token.equals("CMP")) {
-                    String op2 = evalStack.pop();
-                    String op1 = evalStack.pop();
-                    writer.write(String.format("    fld %s\n", op1));
-                    writer.write(String.format("    fld %s\n", op2));
-                    writer.write("    fxch\n");
-                    writer.write("    fcomp\n");
-                    writer.write("    fstsw ax\n");
-                    writer.write("    sahf\n");
-                    writer.write("\n");
-                } else {
-                    // Branch tokens: BLE, BGE, BLT, BGT, BEQ, BNE, BI, ET, etc.
-                    // Tu RPN utiliza placeholders numéricos para saltos y el
-                    // IntermediateCodeGenerator ya backparcheó esos placeholders con índices.
-                    // En esta traducción a assembler convendría transformar:
-                    // - tokens de salto a labels. En tu versión original usabas labelQueue y
-                    //   cellNumberStack para postponer la colocación de etiquetas.
-                    // Para mantenerlo simple y evitar reimplementar todo el mecanismo,
-                    // aquí emitimos instrucciones de salto hacia etiquetas del tipo labelN, y
-                    // suponemos que los placeholders numéricos (si los hay) fueron convertidos
-                    // en tokens '#<num>' en la RPN (no es tu caso exacto).
-                    //
-                    // Si necesitás exactamente la misma lógica que AssemblerManager,
-                    // debemos replicarla aquí (labelQueue/cellNumberStack). Por ahora emitimos
-                    // saltos simples sin labels, adaptalos si querés.
-                    String asmJump = mapBranchToAsm(token);
-                    if (asmJump != null) {
-                        writer.write("    " + asmJump + "\n");
+
+            // Comparaciones (CMP)
+            if (token.equals("CMP")) {
+                if (evalStack.size() < 2) {
+                    throw new RuntimeException("RPN inválida: 'CMP' sin suficientes operandos en pc=" + pc);
+                }
+                String op2 = evalStack.pop();
+                String op1 = evalStack.pop();
+                writer.write(String.format("    FLD %s\n", op1));
+                writer.write(String.format("    FLD %s\n", op2));
+                writer.write("    FXCH\n");
+                writer.write("    FCOMP\n");
+                writer.write("    FSTSW ax\n");
+                writer.write("    SAHF\n\n");
+                continue;
+            }
+
+            // Branch (BLE, BGE, BLT, BGT, BEQ, BNE, BI)
+            if (isBranch(token)) {
+                if (pc + 1 < rpn.size()) {
+                    String dest = rpn.get(pc + 1);
+                    if (dest.matches("^\\d+$")) {
+                        String asmJump = mapBranchToAsm(token, dest);
+                        writer.write("    " + asmJump + "\n\n");
+                        pc++; // consumimos el destino
+                        continue;
+                    } else {
+                        throw new RuntimeException("RPN inválida: branch sin destino numérico en pc=" + pc);
                     }
                 }
             }
-            else {
-                // operando normal, lo ponemos en la pila de evaluación
-                // Si es constante numérica la convertimos en su nombre en .data: _<lexema>
-                if (isNumberLiteral(token)) {
-                    String constName = "_" + token;
-                    evalStack.push(constName);
-                } else {
-                    // Identificador (variable o temporal)
-                    evalStack.push(token);
-                }
+
+            // Operando normal -> lo pusheamos en la pila virtual
+            if (isNumberLiteral(token)) {
+                evalStack.push("_" + token); // Coincide con la etiqueta de .data
+            } else if (isStringLiteral(token)) { // <--- AÑADIDO
+                evalStack.push(token); // Pushea el string crudo (ej: "hola")
+            } else {
+                evalStack.push(token);
             }
         }
 
-        writer.write("\n    invoke exit, 0\n");
-        writer.write("end start\n");
+        // --- INICIO DE LA CORRECCIÓN ---
+        // Chequeo final: ¿Hay algún salto al final del programa?
+        // (ej: un BI a la celda rpn.size())
+        if (jumpTargets.contains(rpn.size())) {
+            writer.write(String.format("L%d:\n", rpn.size()));
+        }
+        // --- FIN DE LA CORRECCIÓN ---
+
+        // FIN DEL PROGRAMA
+        writer.write("    MOV AX, 4C00h\n");
+        writer.write("    INT 21h\n");
+        writer.write("END START\n");
     }
 
-    // ---------- Helpers ----------
+    /** Reinicia el estado interno para una nueva generación. */
+    private void resetState() {
+        tempCounter = 0;
+        temporaries.clear();
+        stringLiterals.clear();
+        jumpTargets.clear();
+        operands.clear();
+    }
+
+    /**
+     * PASADA 1: Recorre la RPN para encontrar Jumps, Operandos y Strings.
+     */
+    private void performFirstPreScan(List<String> rpn) {
+        for (int i = 0; i < rpn.size(); i++) {
+            String tok = rpn.get(i);
+
+            if (isBranch(tok)) {
+                if (i + 1 < rpn.size()) {
+                    String dest = rpn.get(i + 1);
+                    if (dest.matches("^\\d+$")) {
+                        jumpTargets.add(Integer.parseInt(dest));
+                    }
+                }
+                i++; // <-- AÑADIR ESTA LÍNEA para saltar el token de destino
+            } else if (tok.equals("WRITE")) {
+                // No hace nada, es un operador. NO mira hacia adelante.
+            } else if (isStringLiteral(tok)) { // <--- AÑADIDO
+                stringLiterals.add(tok);
+            } else if (!isOperator(tok) && !isControlToken(tok)) {
+                operands.add(tok);
+            }
+        }
+    }
+
+    /**
+     * PASADA 2: Simula la ejecución de la RPN solo para descubrir
+     * la cantidad de variables temporales necesarias.
+     */
+    private void performTemporaryDiscovery(List<String> rpn) {
+        Stack<String> dryRunStack = new Stack<>();
+        int dryRunTempCounter = 0;
+
+        for (int pc = 0; pc < rpn.size(); pc++) {
+            String token = rpn.get(pc);
+
+            if (token.equals("WRITE")) {
+                if (!dryRunStack.isEmpty()) dryRunStack.pop(); // Pop string
+            } else if (isArithmeticOperator(token)) {
+                if (dryRunStack.size() < 2) continue; // ignorar errores en dry run
+                dryRunStack.pop();
+                dryRunStack.pop();
+                dryRunTempCounter++;
+                String tempName = "@T" + dryRunTempCounter;
+                temporaries.add(tempName); // ¡Descubierto!
+                dryRunStack.push(tempName); // simula push del resultado
+            } else if (token.equals(":=") || token.equals("CMP")) {
+                if (dryRunStack.size() < 2) continue;
+                dryRunStack.pop();
+                dryRunStack.pop();
+            } else if (isBranch(token)) {
+                pc++; // skip destination
+            } else if (!isOperator(token) && !isControlToken(token)) { // <-- MODIFICADO
+                dryRunStack.push(token); // simula push de operando (y strings)
+            }
+        }
+    }
+
+
+    // --------------------------
+    // Helpers
+    // --------------------------
 
     private boolean isOperator(String t) {
-        return t.equals("+") || t.equals("-") || t.equals("*") || t.equals("/") ||
-               t.equals(":=") || t.equals("CMP") ||
-               t.equals("BLE") || t.equals("BGE") || t.equals("BLT") ||
-               t.equals("BGT") || t.equals("BEQ") || t.equals("BNE") ||
-               t.equals("BI") || t.equals("ET");
+        return isArithmeticOperator(t) || t.equals(":=") || t.equals("CMP") || isBranch(t) || t.equals("WRITE");
     }
 
     private boolean isArithmeticOperator(String t) {
@@ -224,47 +308,69 @@ public class AsmCodeGenerator implements FileGenerator {
     }
 
     private boolean isControlToken(String t) {
-        // tokens que no son operandos pero que tampoco queremos en .data
-        return t.equals("_PLHDR") || t.matches("^\\d+$"); // placeholder o números puros (si los usas)
+        return t.equals("_PLHDR");
     }
 
-    private boolean isComparisonOrBranch(String t) {
-        return t.equals("CMP") || t.equals("BLE") || t.equals("BGE") ||
-               t.equals("BLT") || t.equals("BGT") || t.equals("BEQ") ||
-               t.equals("BNE") || t.equals("BI") || t.equals("ET");
+    private boolean isBranch(String t) {
+        return t.equals("BLE") || t.equals("BGE") || t.equals("BLT") ||
+                t.equals("BGT") || t.equals("BEQ") || t.equals("BNE") ||
+                t.equals("BI");
+    }
+
+    private boolean isStringLiteral(String s) { // <--- AÑADIDO
+        return s != null && s.startsWith("\"") && s.endsWith("\"");
     }
 
     private boolean isNumberLiteral(String s) {
-        if (s == null) return false;
-        // acepta enteros y floats con punto
-        return s.matches("^-?\\d+$") || s.matches("^-?\\d+\\.\\d+$");
+        return s != null && (s.matches("^-?\\d+$") || s.matches("^-?\\d+\\.\\d+$"));
     }
 
-    private String mapBranchToAsm(String branchToken) {
-        switch (branchToken) {
-            case "BLE": return "JNA label_x"; // placeholder label, ver nota
-            case "BGE": return "JAE label_x";
-            case "BLT": return "JB label_x";
-            case "BGT": return "JA label_x";
-            case "BEQ": return "JE label_x";
-            case "BNE": return "JNE label_x";
-            case "BI":  return "JMP label_x";
-            case "ET":  return null; // ET genera etiqueta, se maneja con label queue si implementas
-            default: return null;
+    private String mapBranchToAsm(String br, String dest) {
+        switch (br) {
+            case "BLE": return "JNA L" + dest; // Jump if Not Above (<=)
+            case "BGE": return "JAE L" + dest; // Jump if Above or Equal (>=)
+            case "BLT": return "JB L"  + dest; // Jump if Below (<)
+            case "BGT": return "JA L"  + dest; // Jump if Above (>)
+            case "BEQ": return "JE L"  + dest; // Jump if Equal (==)
+            case "BNE": return "JNE L" + dest; // Jump if Not Equal (!=)
+            case "BI":  return "JMP L" + dest; // Salto Incondicional
         }
+        return null;
     }
 
     /**
-     * Crea un nuevo temporal y lo registra en la tabla de símbolos usando
-     * el método addToken(String) que tu SymbolTableGenerator sí provee.
+     * Obtiene el nombre del siguiente temporal (ej: @T1).
+     * El temporal ya fue declarado en .data gracias al pre-análisis.
      */
-    private String generateTempAndRegister() {
+    private String generateTempName() {
         tempCounter++;
-        String name = "@T" + tempCounter; // convención @T1, @T2, ...
-        // registrar en tabla (sin tipo/value): SymbolTableGenerator.addToken(String)
-        SymbolTableGenerator.getInstance().addToken(name);
-        return name;
+        return "@T" + tempCounter;
     }
 
-}
+    /**
+     * Limpia un literal (ej: quita comillas) y devuelve su etiqueta única.
+     */
 
+     
+    private String getStringLiteralLabel(String raw) {
+        String clean = raw;
+        if (clean.startsWith("\"") && clean.endsWith("\"") && clean.length() >= 2) {
+            clean = clean.substring(1, clean.length() - 1);
+        }
+        // Usar hash del string limpio para evitar colisiones si "foo" y \"foo\" existen
+        return "_STR_" + Math.abs(clean.hashCode());
+    }
+
+    /**
+     * Devuelve la línea completa de definición de datos (db) para un literal.
+     */
+    private String getStringLiteralData(String raw) {
+        String clean = raw;
+        if (clean.startsWith("\"") && clean.endsWith("\"") && clean.length() >= 2) {
+            clean = clean.substring(1, clean.length() - 1);
+        }
+        String label = getStringLiteralLabel(raw);
+        // Asegura que el string termine con '$' para la INT 21h/09h
+        return label + " db \"" + clean + "$\"\n";
+    }
+}
