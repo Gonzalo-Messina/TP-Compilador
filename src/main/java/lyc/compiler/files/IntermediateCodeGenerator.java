@@ -42,7 +42,7 @@ public class IntermediateCodeGenerator implements FileGenerator {
         return index;
     }
 
-    // --- Métodos de Backpatching (Reemplazan la lógica de Etiquetas) ---
+    // --- Métodos de Backpatching ---
 
     /**
      * Devuelve el índice de la siguiente instrucción a ser agregada.
@@ -55,11 +55,6 @@ public class IntermediateCodeGenerator implements FileGenerator {
         return this.rpnCode.size();
     }
 
-    public List<String> getRpnCode() {
-        //Devuelve la lista completa de tokens RPN generados.
-        return this.rpnCode;
-    }
-
     /**
      * Parchea un marcador de posición de salto con un índice de destino real.
      * Usado por las acciones semánticas de IF y WHILE.
@@ -67,6 +62,7 @@ public class IntermediateCodeGenerator implements FileGenerator {
      * @param targetIndex La posición (índice) a la que debe saltar.
      */
     public void backpatch(int indexToPatch, String targetIndex) {
+        
         // 1. Verificación básica de índice
         if (indexToPatch < 0 || indexToPatch >= this.rpnCode.size()) {
             System.err.println("ADVERTENCIA: Intento de parchear un índice fuera de rango: " + indexToPatch);
@@ -83,12 +79,14 @@ public class IntermediateCodeGenerator implements FileGenerator {
         System.out.println("PATCHED: Indice " + indexToPatch + " => " + targetIndex);
     }
 
-    // Los métodos newLabel, markLabelUsed, isLabelUsed, optimizeLabels, validateLabelFlow se eliminan.
+        public List<String> getRpnCode() {
+        //Devuelve la lista completa de tokens RPN generados.
+        return this.rpnCode;
+    }
+
 
     @Override
     public void generate(FileWriter fileWriter) throws IOException {
-
-        // No hay optimización ni validación de etiquetas, ya que no se usan.
 
         // Escribe el título o cabecera del código intermedio
         fileWriter.write("Código Intermedio (Notación Polaca Inversa con Índices)\n");

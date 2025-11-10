@@ -19,7 +19,7 @@ public class AsmCodeGenerator implements FileGenerator {
     private final Set<String> temporaries = new LinkedHashSet<>();
     // Almacena todos los literales de string (ej: "hola") que se necesitarán
     private final Set<String> stringLiterals = new LinkedHashSet<>();
-    // Almacena los índices de la RPN que son destinos de salto
+    // Almacena los índices de la CGI que son destinos de salto
     private final Set<Integer> jumpTargets = new LinkedHashSet<>();
     // Almacena los operandos (variables y constantes)
     private final LinkedHashSet<String> operands = new LinkedHashSet<>();
@@ -43,11 +43,10 @@ public class AsmCodeGenerator implements FileGenerator {
         lyc.compiler.files.SymbolTableGenerator symbolTable = lyc.compiler.files.SymbolTableGenerator.getInstance();
         List<String> rpn = icg.getRpnCode();
 
-        // 2. Pre-análisis (Pasada 1): Detectar Jumps, Operandos y Strings
-        // (En una sola pasada)
+        // 2. Pasada 1: Detectar Jumps, Operandos y Strings
         performFirstPreScan(rpn);
 
-        // 3. Pre-análisis (Pasada 2): Simulación (Dry Run) para detectar Temporales
+        // 3. Pasada 2: para detectar Temporales
         performTemporaryDiscovery(rpn);
 
         // --------------------------
@@ -70,10 +69,10 @@ public class AsmCodeGenerator implements FileGenerator {
         // Emisión de variables y constantes (detectadas en Pasada 1)
         for (String op : operands) {
             if (isNumberLiteral(op)) {
-                // constante → _<lexema> dd <valor>
+                // constante  _<lexema> dd <valor>
                 writer.write(String.format("_%s dd %s\n", op, op));
             } else {
-                // identificador → dd 0.0
+                // identificador  dd 0.0
                 writer.write(String.format("%s dd 0.0\n", op));
             }
         }
@@ -81,7 +80,7 @@ public class AsmCodeGenerator implements FileGenerator {
         // Emisión de temporales (detectados en Pasada 2)
         for (String tempName : temporaries) {
             writer.write(String.format("%s dd 0.0\n", tempName));
-            // Registrarlos también en la tabla de símbolos
+            //Se registran también en la tabla de símbolos
             symbolTable.addToken(tempName);
         }
 
@@ -118,30 +117,30 @@ public class AsmCodeGenerator implements FileGenerator {
             // WRITE (literal)
             if (token.equals("WRITE")) {
                 if (evalStack.isEmpty()) {
-                    throw new RuntimeException("RPN inválida: 'WRITE' sin operando en la pila en pc=" + pc);
+                    throw new RuntimeException("CGI inválida: 'WRITE' sin operando en la pila en pc=" + pc);
                 }
-                String stringToPrint = evalStack.pop(); // <--- MODIFICADO
-                // (Corregido) Solo obtenemos el label, ya fue definido en .data
-                String label = getStringLiteralLabel(stringToPrint); // <--- MODIFICADO
+                String stringToPrint = evalStack.pop(); 
+                // Solo obtiene el label, ya fue definido en .data
+                String label = getStringLiteralLabel(stringToPrint);
                 writer.write("    MOV DX, OFFSET " + label + "\n");
                 writer.write("    MOV AH, 09h\n");
                 writer.write("    INT 21h\n");
                 writer.write("    MOV DX, OFFSET _NEWLINE\n");
                 writer.write("    MOV AH, 09h\n");
                 writer.write("    INT 21h\n\n");
-                // pc++; // (REMOVIDO)
+                
                 continue;
             }
 
             // Aritméticos
             if (isArithmeticOperator(token)) {
                 if (evalStack.size() < 2) {
-                    throw new RuntimeException("RPN inválida: operador aritmético sin suficientes operandos en pc=" + pc);
+                    throw new RuntimeException("CGI inválida: operador aritmético sin suficientes operandos en pc=" + pc);
                 }
                 String op2 = evalStack.pop();
                 String op1 = evalStack.pop();
 
-                // (Corregido) Obtenemos el nombre del temp, ya fue declarado en .data
+                //Obtiene el nombre del temp, ya fue declarado en .data
                 String aux = generateTempName();
 
                 writer.write(String.format("    FLD %s\n", op1));
@@ -159,12 +158,11 @@ public class AsmCodeGenerator implements FileGenerator {
                 continue;
             }
 
-            // Asignación (Asume RPN: <valor_fuente> <variable_destino> :=)
+            // Asignación (Asume: <valor_fuente> <variable_destino> :=)
             if (token.equals(":=")) {
                 if (evalStack.size() < 2) {
-                    throw new RuntimeException("RPN inválida: ':=' sin suficientes operandos en pc=" + pc);
+                    throw new RuntimeException("CGI inválida: ':=' sin suficientes operandos en pc=" + pc);
                 }
-                // El orden es importante
                 String dst = evalStack.pop(); // variable destino
                 String src = evalStack.pop(); // valor fuente
                 writer.write(String.format("    FLD %s\n", src));
@@ -172,10 +170,10 @@ public class AsmCodeGenerator implements FileGenerator {
                 continue;
             }
 
-            // Comparaciones (CMP)
+            // Comparaciones
             if (token.equals("CMP")) {
                 if (evalStack.size() < 2) {
-                    throw new RuntimeException("RPN inválida: 'CMP' sin suficientes operandos en pc=" + pc);
+                    throw new RuntimeException("CGI inválida: 'CMP' sin suficientes operandos en pc=" + pc);
                 }
                 String op2 = evalStack.pop();
                 String op1 = evalStack.pop();
@@ -198,28 +196,25 @@ public class AsmCodeGenerator implements FileGenerator {
                         pc++; // consumimos el destino
                         continue;
                     } else {
-                        throw new RuntimeException("RPN inválida: branch sin destino numérico en pc=" + pc);
+                        throw new RuntimeException("CGI inválida: branch sin destino numérico en pc=" + pc);
                     }
                 }
             }
 
-            // Operando normal -> lo pusheamos en la pila virtual
+            // Operando normal -> lo pushea en la pila virtual
             if (isNumberLiteral(token)) {
                 evalStack.push("_" + token); // Coincide con la etiqueta de .data
-            } else if (isStringLiteral(token)) { // <--- AÑADIDO
-                evalStack.push(token); // Pushea el string crudo (ej: "hola")
+            } else if (isStringLiteral(token)) { 
+                evalStack.push(token); // Pushea el string literal
             } else {
                 evalStack.push(token);
             }
         }
 
-        // --- INICIO DE LA CORRECCIÓN ---
-        // Chequeo final: ¿Hay algún salto al final del programa?
-        // (ej: un BI a la celda rpn.size())
+        // Chequeo si hay algún salto al final del programa
         if (jumpTargets.contains(rpn.size())) {
             writer.write(String.format("L%d:\n", rpn.size()));
         }
-        // --- FIN DE LA CORRECCIÓN ---
 
         // FIN DEL PROGRAMA
         writer.write("    MOV AX, 4C00h\n");
@@ -227,7 +222,7 @@ public class AsmCodeGenerator implements FileGenerator {
         writer.write("END START\n");
     }
 
-    /** Reinicia el estado interno para una nueva generación. */
+    /* Reinicia el estado interno para una nueva generación. */
     private void resetState() {
         tempCounter = 0;
         temporaries.clear();
@@ -236,8 +231,8 @@ public class AsmCodeGenerator implements FileGenerator {
         operands.clear();
     }
 
-    /**
-     * PASADA 1: Recorre la RPN para encontrar Jumps, Operandos y Strings.
+    /*
+     PASADA 1: Recorre la polaca para encontrar Jumps, Operandos y Strings.
      */
     private void performFirstPreScan(List<String> rpn) {
         for (int i = 0; i < rpn.size(); i++) {
@@ -250,10 +245,9 @@ public class AsmCodeGenerator implements FileGenerator {
                         jumpTargets.add(Integer.parseInt(dest));
                     }
                 }
-                i++; // <-- AÑADIR ESTA LÍNEA para saltar el token de destino
+                i++; // <-- salta el token de destino
             } else if (tok.equals("WRITE")) {
-                // No hace nada, es un operador. NO mira hacia adelante.
-            } else if (isStringLiteral(tok)) { // <--- AÑADIDO
+            } else if (isStringLiteral(tok)) {
                 stringLiterals.add(tok);
             } else if (!isOperator(tok) && !isControlToken(tok)) {
                 operands.add(tok);
@@ -261,9 +255,9 @@ public class AsmCodeGenerator implements FileGenerator {
         }
     }
 
-    /**
-     * PASADA 2: Simula la ejecución de la RPN solo para descubrir
-     * la cantidad de variables temporales necesarias.
+    /*
+     PASADA 2: Simula la ejecución de la cgi solo para descubrir
+     la cantidad de variables temporales necesarias.
      */
     private void performTemporaryDiscovery(List<String> rpn) {
         Stack<String> dryRunStack = new Stack<>();
@@ -275,29 +269,25 @@ public class AsmCodeGenerator implements FileGenerator {
             if (token.equals("WRITE")) {
                 if (!dryRunStack.isEmpty()) dryRunStack.pop(); // Pop string
             } else if (isArithmeticOperator(token)) {
-                if (dryRunStack.size() < 2) continue; // ignorar errores en dry run
+                if (dryRunStack.size() < 2) continue;
                 dryRunStack.pop();
                 dryRunStack.pop();
                 dryRunTempCounter++;
                 String tempName = "@T" + dryRunTempCounter;
-                temporaries.add(tempName); // ¡Descubierto!
+                temporaries.add(tempName); 
                 dryRunStack.push(tempName); // simula push del resultado
             } else if (token.equals(":=") || token.equals("CMP")) {
                 if (dryRunStack.size() < 2) continue;
                 dryRunStack.pop();
                 dryRunStack.pop();
             } else if (isBranch(token)) {
-                pc++; // skip destination
-            } else if (!isOperator(token) && !isControlToken(token)) { // <-- MODIFICADO
-                dryRunStack.push(token); // simula push de operando (y strings)
+                pc++; // salta el destino
+            } else if (!isOperator(token) && !isControlToken(token)) { 
+                dryRunStack.push(token); // simula push de operando y strings
             }
         }
     }
 
-
-    // --------------------------
-    // Helpers
-    // --------------------------
 
     private boolean isOperator(String t) {
         return isArithmeticOperator(t) || t.equals(":=") || t.equals("CMP") || isBranch(t) || t.equals("WRITE");
@@ -338,31 +328,30 @@ public class AsmCodeGenerator implements FileGenerator {
         return null;
     }
 
-    /**
-     * Obtiene el nombre del siguiente temporal (ej: @T1).
-     * El temporal ya fue declarado en .data gracias al pre-análisis.
-     */
+    /*
+    Obtiene el nombre del siguiente temporal
+    El temporal ya fue declarado en .data
+    */
     private String generateTempName() {
         tempCounter++;
         return "@T" + tempCounter;
     }
 
-    /**
-     * Limpia un literal (ej: quita comillas) y devuelve su etiqueta única.
-     */
+    /*
+    Limpia un literal y devuelve su etiqueta única.
+    */
 
-     
     private String getStringLiteralLabel(String raw) {
         String clean = raw;
         if (clean.startsWith("\"") && clean.endsWith("\"") && clean.length() >= 2) {
             clean = clean.substring(1, clean.length() - 1);
         }
-        // Usar hash del string limpio para evitar colisiones si "foo" y \"foo\" existen
+        // Usar hash del string 
         return "_STR_" + Math.abs(clean.hashCode());
     }
 
-    /**
-     * Devuelve la línea completa de definición de datos (db) para un literal.
+    /*
+     Devuelve la línea completa de definición de datos para una cadena literal.
      */
     private String getStringLiteralData(String raw) {
         String clean = raw;
