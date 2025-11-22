@@ -759,9 +759,7 @@ triangle ::= OPEN_SQUARE coords:c1 SEMICOLON coords:c2 SEMICOLON coords:c3 CLOSE
         RESULT = triangleTypes;
     :};
 
-/* ARG_LIST
-   Generamos la polaca para la fórmula del área y el 'max'.
-*/
+/* ARG_LIST */
 arg_list ::= triangle:t1 SEMICOLON triangle:t2
     {:
         System.out.println("TRIANGLE_AREA_MAXIMUM");
@@ -769,69 +767,48 @@ arg_list ::= triangle:t1 SEMICOLON triangle:t2
         IntermediateCodeGenerator gen = IntermediateCodeGenerator.getInstance();
 
         // --- TRIÁNGULO 1
-        // La polaca tiene [x1 y1 x2 y2 x3 y3], tope=y3.
-        // Por eso, para guardar, generamos "ty3 :=" (consume y3), "tx3 :=" (consume x3), etc.
-
-        // TRIÁNGULO 1: crear nombres temporales
         String tx1 = "t_x1_1"; String ty1 = "t_y1_1";
         String tx2 = "t_x2_1"; String ty2 = "t_y2_1";
         String tx3 = "t_x3_1"; String ty3 = "t_y3_1";
         String area1 = "t_area_1";
 
-        // Los 6 valores ya están en la polaca.
-        // En polaca, la asignación es <valor> <var> :=
-        gen.addToken(ty3); gen.addToken(":="); // consume y3
-        gen.addToken(tx3); gen.addToken(":="); // consume x3
-        gen.addToken(ty2); gen.addToken(":="); // consume y2
-        gen.addToken(tx2); gen.addToken(":="); // consume x2
-        gen.addToken(ty1); gen.addToken(":="); // consume y1
-        gen.addToken(tx1); gen.addToken(":="); // consume x1
-
-        // area_raw = x1*(y2-y3) + x2*(y3-y1) + x3*(y1-y2)
-        // polaca:
-        // t_x1 t_y2 t_y3 - * t_x2 t_y3 t_y1 - * +   t_x3 t_y1 t_y2 - * +
+        gen.addToken(ty3); gen.addToken(":="); 
+        gen.addToken(tx3); gen.addToken(":="); 
+        gen.addToken(ty2); gen.addToken(":="); 
+        gen.addToken(tx2); gen.addToken(":="); 
+        gen.addToken(ty1); gen.addToken(":="); 
+        gen.addToken(tx1); gen.addToken(":="); 
 
         gen.addToken(tx1); gen.addToken(ty2); gen.addToken(ty3); gen.addToken("-"); gen.addToken("*");
         gen.addToken(tx2); gen.addToken(ty3); gen.addToken(ty1); gen.addToken("-"); gen.addToken("*");
         gen.addToken("+");
         gen.addToken(tx3); gen.addToken(ty1); gen.addToken(ty2); gen.addToken("-"); gen.addToken("*");
         gen.addToken("+");
-
-        // multiplicar por 0.5
         gen.addToken("0.5"); gen.addToken("*");
-
-        // almacenar en area1
         gen.addToken(area1); gen.addToken(":=");
 
-        // Absoluto del area por si da negativo
+        // Absoluto area1
         gen.addToken(area1); gen.addToken("0"); gen.addToken("CMP");
-        gen.addToken("BLT"); // Saltar si es Menor (negativo)
-        int negPlaceholder = generatePlaceholder(); // hueco para salto al bloque negativo
-
-        // Queremos que BLT (si es negativo) salte al bloque de negación.
-        // El bloque de negación empieza ya, así que parcheamos con el índice actual.
-        backpatch(negPlaceholder, getNextIndex());
-
-        // Bloque de negación: area1 -1 * -> area1 :=
+        gen.addToken("BLT"); 
+        int negPlaceholder = generatePlaceholder(); 
+        // Backpatching local usando el índice actual
+        IntermediateCodeGenerator.getInstance().backpatch(negPlaceholder, String.valueOf(IntermediateCodeGenerator.getInstance().getInstructionCount()));
         gen.addToken(area1); gen.addToken("-1"); gen.addToken("*");
         gen.addToken(area1); gen.addToken(":=");
 
-        // Si no es < 0, sigue de largo y saltea este bloque.
-
-        // --- Ahora TRIÁNGULO 2: mismos pasos (sufijo _2)
+        // --- TRIÁNGULO 2
         String ux1 = "t_x1_2"; String uy1 = "t_y1_2";
         String ux2 = "t_x2_2"; String uy2 = "t_y2_2";
         String ux3 = "t_x3_2"; String uy3 = "t_y3_2";
         String area2 = "t_area_2";
 
-        gen.addToken(uy3); gen.addToken(":="); // consume y3 (del segundo tri)
-        gen.addToken(ux3); gen.addToken(":="); // consume x3
-        gen.addToken(uy2); gen.addToken(":="); // consume y2
-        gen.addToken(ux2); gen.addToken(":="); // consume x2
-        gen.addToken(uy1); gen.addToken(":="); // consume y1
-        gen.addToken(ux1); gen.addToken(":="); // consume x1
+        gen.addToken(uy3); gen.addToken(":="); 
+        gen.addToken(ux3); gen.addToken(":="); 
+        gen.addToken(uy2); gen.addToken(":="); 
+        gen.addToken(ux2); gen.addToken(":="); 
+        gen.addToken(uy1); gen.addToken(":="); 
+        gen.addToken(ux1); gen.addToken(":="); 
 
-        // area2 = ux1*(uy2-uy3) + ux2*(uy3-uy1) + ux3*(uy1-uy2)
         gen.addToken(ux1); gen.addToken(uy2); gen.addToken(uy3); gen.addToken("-"); gen.addToken("*");
         gen.addToken(ux2); gen.addToken(uy3); gen.addToken(uy1); gen.addToken("-"); gen.addToken("*");
         gen.addToken("+");
@@ -840,19 +817,17 @@ arg_list ::= triangle:t1 SEMICOLON triangle:t2
         gen.addToken("0.5"); gen.addToken("*");
         gen.addToken(area2); gen.addToken(":=");
 
-        // ABS(area2)
+        // Absoluto area2
         gen.addToken(area2); gen.addToken("0"); gen.addToken("CMP");
         gen.addToken("BLT");
         int negPlaceholder2 = generatePlaceholder();
-        backpatch(negPlaceholder2, getNextIndex());
+        IntermediateCodeGenerator.getInstance().backpatch(negPlaceholder2, String.valueOf(IntermediateCodeGenerator.getInstance().getInstructionCount()));
         gen.addToken(area2); gen.addToken("-1"); gen.addToken("*");
         gen.addToken(area2); gen.addToken(":=");
 
-        // --- MAX(area1, area2) implementado con CMP + ramas
-        // Queremos: if (area1 >= area2) areaMax := area1 else areaMax := area2
-
+        // --- MAX(area1, area2)
         String areaMax = "t_area_max";
-        // empujar area1 area2 CMP BGE <placeholder_true>
+        
         gen.addToken(area1); gen.addToken(area2); gen.addToken("CMP");
         gen.addToken("BGE"); // Saltar si area1 >= area2
         int truePlaceholder = generatePlaceholder();
@@ -860,18 +835,19 @@ arg_list ::= triangle:t1 SEMICOLON triangle:t2
         // ELSE: areaMax := area2
         gen.addToken(area2); gen.addToken(areaMax); gen.addToken(":=");
 
-        // Salto incondicional para saltar la parte true después del else
         gen.addToken("BI");
         int endPlaceholder = generatePlaceholder();
 
-        // Parchear BGE para que apunte al inicio de la rama TRUE 
-        backpatch(truePlaceholder, getNextIndex());
-
         // TRUE: areaMax := area1
+        IntermediateCodeGenerator.getInstance().backpatch(truePlaceholder, String.valueOf(IntermediateCodeGenerator.getInstance().getInstructionCount()));
         gen.addToken(area1); gen.addToken(areaMax); gen.addToken(":=");
 
-        // parchar BI para que apunte al final
-        backpatch(endPlaceholder, getNextIndex());
+        IntermediateCodeGenerator.getInstance().backpatch(endPlaceholder, String.valueOf(IntermediateCodeGenerator.getInstance().getInstructionCount()));
 
-        RESULT = null; // no devolvemos valor extra aquí
+        // !!! CORRECCIÓN IMPORTANTE !!!
+        // Dejamos el resultado en la pila virtual de la Polaca.
+        // Esto permite que la asignación ":=" que viene después encuentre el valor.
+        gen.addToken(areaMax);
+
+        RESULT = null; 
     :};
