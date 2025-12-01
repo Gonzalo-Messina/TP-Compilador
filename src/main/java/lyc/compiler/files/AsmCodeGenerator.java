@@ -42,14 +42,21 @@ public class AsmCodeGenerator implements FileGenerator {
 
         writer.write(".DATA\n");
 
-        // --- CORRECCIÓN 1: Forzar punto decimal en constantes numéricas ---
+        // --- CORRECCIÓN 1: Mejor manejo de constantes numéricas (.99, 99.) ---
         for (String op : operands) {
             String asmLabel = getValidAsmLabel(op);
 
             if (isNumberLiteral(op)) {
                 symbolTable.addToken(op, "Float", op);
-                // Si es "3", lo convertimos a "3.0" para que TASM lo guarde como Float real
+                
                 String val = op;
+                // Normalizar para TASM (ej: .99 -> 0.99, 99. -> 99.0)
+                if (val.startsWith(".")) {
+                    val = "0" + val;
+                }
+                if (val.endsWith(".")) {
+                    val = val + "0";
+                }
                 if (!val.contains(".")) {
                     val += ".0";
                 }
@@ -106,18 +113,32 @@ public class AsmCodeGenerator implements FileGenerator {
                 continue;
             }
             
-            // --- PARCHE PARA READ (Evita que se trate como variable) ---
             if (token.equals("READ")) {
-                // Como no implementamos input, solo sacamos la variable de la pila si existe
-                // RPN suele ser: variable READ. Así que popeamos la variable.
                 if (!evalStack.isEmpty()) {
-                    // Opcional: Aquí podrías generar código para leer teclado
                     evalStack.pop(); 
                 }
                 continue;
             }
 
             if (isArithmeticOperator(token)) {
+                // --- CORRECCIÓN 3: Soporte para MENOS UNARIO (-123) ---
+                if (token.equals("-") && evalStack.size() < 2) {
+                    // Si es un '-' y solo hay 1 cosa en la pila, es unario (negativo)
+                    String op1 = evalStack.pop();
+                    String aux = generateTempName();
+                    
+                    writer.write(String.format("    FLD %s\n", op1));
+                    writer.write("    FCHS\n"); // Floating Change Sign (cambia signo)
+                    writer.write(String.format("    FSTP %s\n\n", aux));
+                    
+                    evalStack.push(aux);
+                    continue;
+                }
+
+                // Operación Binaria Normal (+, -, *, /)
+                if (evalStack.size() < 2) {
+                    throw new RuntimeException("RPN inválida: operador " + token + " sin suficientes operandos en pc=" + pc);
+                }
                 String op2 = evalStack.pop();
                 String op1 = evalStack.pop();
                 String aux = generateTempName();
@@ -137,21 +158,33 @@ public class AsmCodeGenerator implements FileGenerator {
             }
 
             if (token.equals(":=")) {
+                if (evalStack.size() < 2) {
+                    throw new RuntimeException("RPN inválida: ':=' sin suficientes operandos en pc=" + pc);
+                }
                 String dst = evalStack.pop();
                 String src = evalStack.pop();
-                writer.write(String.format("    FLD %s\n", src));
-                writer.write(String.format("    FSTP %s\n\n", dst));
+
+                if (isStringLiteral(src)) {
+                    String label = getStringLiteralLabel(src);
+                    writer.write("    MOV AX, OFFSET " + label + "\n");
+                    writer.write("    MOV WORD PTR " + dst + ", AX\n"); 
+                    writer.write("\n");
+                } else {
+                    writer.write(String.format("    FLD %s\n", src));
+                    writer.write(String.format("    FSTP %s\n\n", dst));
+                }
+                
                 continue;
             }
 
-            // --- CORRECCIÓN 2: Usar FCOMPP para limpiar pila ---
             if (token.equals("CMP")) {
+                if (evalStack.size() < 2) throw new RuntimeException("CMP sin operandos");
                 String op2 = evalStack.pop();
                 String op1 = evalStack.pop();
                 writer.write(String.format("    FLD %s\n", op1));
                 writer.write(String.format("    FLD %s\n", op2));
                 writer.write("    FXCH\n");
-                writer.write("    FCOMPP\n"); // FCOMPP saca AMBOS valores de la pila
+                writer.write("    FCOMPP\n"); 
                 writer.write("    FSTSW ax\n");
                 writer.write("    SAHF\n\n");
                 continue;
@@ -166,13 +199,11 @@ public class AsmCodeGenerator implements FileGenerator {
                 }
             }
 
-            // PUSH DE OPERANDOS
             if (isNumberLiteral(token)) {
                 evalStack.push(getValidAsmLabel(token)); 
             } else if (isStringLiteral(token)) { 
                 evalStack.push(token); 
             } else {
-                // Ignoramos READ si llega aquí por error, o cualquier token desconocido
                 if (!token.equals("READ")) {
                     evalStack.push(getValidAsmLabel(token));
                 }
@@ -238,8 +269,13 @@ public class AsmCodeGenerator implements FileGenerator {
             } else if (token.equals("READ")) {
                 if (!dryRunStack.isEmpty()) dryRunStack.pop();
             } else if (isArithmeticOperator(token)) {
-                if (dryRunStack.size() < 2) continue;
-                dryRunStack.pop(); dryRunStack.pop();
+                // En Discovery, si hay < 2 operandos, asumimos unario y no popeamos 2
+                if (dryRunStack.size() < 2) {
+                    if (!dryRunStack.isEmpty()) dryRunStack.pop(); // Pop 1 (unario)
+                } else {
+                    dryRunStack.pop(); dryRunStack.pop(); // Pop 2 (binario)
+                }
+                
                 dryRunTempCounter++;
                 String tempName = "@T" + dryRunTempCounter;
                 temporaries.add(tempName); 
@@ -267,7 +303,16 @@ public class AsmCodeGenerator implements FileGenerator {
                 t.equals("BGT") || t.equals("BEQ") || t.equals("BNE") || t.equals("BI");
     }
     private boolean isStringLiteral(String s) { return s != null && s.startsWith("\"") && s.endsWith("\""); }
-    private boolean isNumberLiteral(String s) { return s != null && (s.matches("^-?\\d+$") || s.matches("^-?\\d+\\.\\d+$")); }
+    
+    // --- CORRECCIÓN 2: Regex mejorada para números ---
+    private boolean isNumberLiteral(String s) { 
+        return s != null && (
+            s.matches("^-?\\d+$") ||           // Enteros: 123, -123
+            s.matches("^-?\\d+\\.\\d+$") ||    // Floats normales: 1.23, -1.23
+            s.matches("^-?\\d+\\.$") ||        // Floats terminados en punto: 99.
+            s.matches("^-?\\.\\d+$")           // Floats empezados en punto: .99
+        ); 
+    }
 
     private String mapBranchToAsm(String br, String dest) {
         switch (br) {

@@ -13,13 +13,19 @@ init {
 varInt1 := 130814
 varInt1 := -130814
 
+write(varInt1)
+
 varFloat1 := 99999.99
 varFloat1 := 99.
 varFloat1 := .9999
 
+write(varFloat1)
+
 varFloat1 := -99999.99
 varFloat1 := -99.
 varFloat1 := -.9999
+
+write(varFloat1)
 
 varStr1 := "aaaaaaaa"
 
@@ -118,7 +124,6 @@ if (isZero( s*7+1-h/2 ))
 #+varFloat1 : 3.5 +#
 
 
-
 #+ Literales mal formateados +#
 #+ varFloat1 := 1.2.3 +#
 #+ varInt1 := 0129 +#
@@ -140,6 +145,9 @@ if (isZero( s*7+1-h/2 ))
 z := 2
 x := 3.8
 areaMax := triangleAreaMaximum( [0,x; 4.0,12; 2.5,3] ; [x,0; 6,0; z,2] )
+
+write("El area maxima es:")
+write(areaMax)
 
 #+ Validaciones semánticas - Variables duplicadas +#
 #+ varInt1 : Int     +#  // Error: Variable 'varInt1' ya fue declarada previamente
