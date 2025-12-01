@@ -11,17 +11,10 @@ public class AsmCodeGenerator implements FileGenerator {
 
     private static AsmCodeGenerator instance;
 
-    // Contador para temporales creadas por el ensamblador
     private int tempCounter = 0;
-
-    // --- Estado para el pre-análisis ---
-    // Almacena todos los temporales (ej: @T1) que se necesitarán
     private final Set<String> temporaries = new LinkedHashSet<>();
-    // Almacena todos los literales de string (ej: "hola") que se necesitarán
     private final Set<String> stringLiterals = new LinkedHashSet<>();
-    // Almacena los índices de la CGI que son destinos de salto
     private final Set<Integer> jumpTargets = new LinkedHashSet<>();
-    // Almacena los operandos (variables y constantes)
     private final LinkedHashSet<String> operands = new LinkedHashSet<>();
 
     private AsmCodeGenerator() {}
@@ -35,66 +28,48 @@ public class AsmCodeGenerator implements FileGenerator {
 
     @Override
     public void generate(FileWriter writer) throws IOException {
-
-        // 1. Reiniciar estado (si se genera varias veces)
         resetState();
-
         IntermediateCodeGenerator icg = IntermediateCodeGenerator.getInstance();
-        lyc.compiler.files.SymbolTableGenerator symbolTable = lyc.compiler.files.SymbolTableGenerator.getInstance();
+        SymbolTableGenerator symbolTable = SymbolTableGenerator.getInstance();
         List<String> rpn = icg.getRpnCode();
 
-        // 2. Pasada 1: Detectar Jumps, Operandos y Strings
         performFirstPreScan(rpn);
-
-        // 3. Pasada 2: para detectar Temporales
         performTemporaryDiscovery(rpn);
 
-        // --------------------------
-        // Sección .MODEL / .DATA
-        // --------------------------
         writer.write(".MODEL LARGE\n");
         writer.write(".386\n");
         writer.write(".STACK 200h\n\n");
 
         writer.write(".DATA\n");
 
-        // Registrar constantes numéricas en la tabla
+        // --- CORRECCIÓN 1: Forzar punto decimal en constantes numéricas ---
         for (String op : operands) {
+            String asmLabel = getValidAsmLabel(op);
+
             if (isNumberLiteral(op)) {
-                // registra la constante con prefijo "_" y tipo Float
                 symbolTable.addToken(op, "Float", op);
-            }
-        }
-
-        // Emisión de variables y constantes (detectadas en Pasada 1)
-        for (String op : operands) {
-            if (isNumberLiteral(op)) {
-                // constante  _<lexema> dd <valor>
-                writer.write(String.format("_%s dd %s\n", op, op));
+                // Si es "3", lo convertimos a "3.0" para que TASM lo guarde como Float real
+                String val = op;
+                if (!val.contains(".")) {
+                    val += ".0";
+                }
+                writer.write(String.format("%s dd %s\n", asmLabel, val));
             } else {
-                // identificador  dd 0.0
-                writer.write(String.format("%s dd 0.0\n", op));
+                writer.write(String.format("%s dd 0.0\n", asmLabel));
             }
         }
 
-        // Emisión de temporales (detectados en Pasada 2)
         for (String tempName : temporaries) {
             writer.write(String.format("%s dd 0.0\n", tempName));
-            //Se registran también en la tabla de símbolos
             symbolTable.addToken(tempName);
         }
 
-        // Emisión de literales de string (detectados en Pasada 1)
         for (String rawLiteral : stringLiterals) {
             writer.write(getStringLiteralData(rawLiteral));
         }
 
-        // Buffer para textos de WRITE
         writer.write("_NEWLINE db 0DH,0AH,0\n");
 
-        // --------------------------
-        // Sección .CODE
-        // --------------------------
         writer.write("\n.CODE\n");
         writer.write("START:\n");
         writer.write("    MOV AX, @DATA\n");
@@ -104,43 +79,47 @@ public class AsmCodeGenerator implements FileGenerator {
 
         Stack<String> evalStack = new Stack<>();
 
-        // 4. Generación de Código (Pasada 3)
         for (int pc = 0; pc < rpn.size(); pc++) {
 
-            // Emitir label si esta celda es destino de salto
             if (jumpTargets.contains(pc)) {
                 writer.write(String.format("L%d:\n", pc));
             }
 
             String token = rpn.get(pc);
 
-            // WRITE (literal)
             if (token.equals("WRITE")) {
-                if (evalStack.isEmpty()) {
-                    throw new RuntimeException("CGI inválida: 'WRITE' sin operando en la pila en pc=" + pc);
+                if (evalStack.isEmpty()) throw new RuntimeException("Error: WRITE sin operando");
+                String operand = evalStack.pop(); 
+                
+                if (isStringLiteral(operand)) {
+                    String label = getStringLiteralLabel(operand);
+                    writer.write("    MOV DX, OFFSET " + label + "\n");
+                    writer.write("    MOV AH, 09h\n");
+                    writer.write("    INT 21h\n");
+                } else {
+                    writer.write("    FLD " + operand + "\n");
+                    writer.write("    CALL PRINT_FLOAT\n");
                 }
-                String stringToPrint = evalStack.pop(); 
-                // Solo obtiene el label, ya fue definido en .data
-                String label = getStringLiteralLabel(stringToPrint);
-                writer.write("    MOV DX, OFFSET " + label + "\n");
-                writer.write("    MOV AH, 09h\n");
-                writer.write("    INT 21h\n");
                 writer.write("    MOV DX, OFFSET _NEWLINE\n");
                 writer.write("    MOV AH, 09h\n");
                 writer.write("    INT 21h\n\n");
-                
+                continue;
+            }
+            
+            // --- PARCHE PARA READ (Evita que se trate como variable) ---
+            if (token.equals("READ")) {
+                // Como no implementamos input, solo sacamos la variable de la pila si existe
+                // RPN suele ser: variable READ. Así que popeamos la variable.
+                if (!evalStack.isEmpty()) {
+                    // Opcional: Aquí podrías generar código para leer teclado
+                    evalStack.pop(); 
+                }
                 continue;
             }
 
-            // Aritméticos
             if (isArithmeticOperator(token)) {
-                if (evalStack.size() < 2) {
-                    throw new RuntimeException("CGI inválida: operador aritmético sin suficientes operandos en pc=" + pc);
-                }
                 String op2 = evalStack.pop();
                 String op1 = evalStack.pop();
-
-                //Obtiene el nombre del temp, ya fue declarado en .data
                 String aux = generateTempName();
 
                 writer.write(String.format("    FLD %s\n", op1));
@@ -152,77 +131,76 @@ public class AsmCodeGenerator implements FileGenerator {
                     case "*": writer.write("    FMUL\n"); break;
                     case "/": writer.write("    FDIV\n"); break;
                 }
-
                 writer.write(String.format("    FSTP %s\n\n", aux));
                 evalStack.push(aux);
                 continue;
             }
 
-            // Asignación (Asume: <valor_fuente> <variable_destino> :=)
             if (token.equals(":=")) {
-                if (evalStack.size() < 2) {
-                    throw new RuntimeException("CGI inválida: ':=' sin suficientes operandos en pc=" + pc);
-                }
-                String dst = evalStack.pop(); // variable destino
-                String src = evalStack.pop(); // valor fuente
+                String dst = evalStack.pop();
+                String src = evalStack.pop();
                 writer.write(String.format("    FLD %s\n", src));
                 writer.write(String.format("    FSTP %s\n\n", dst));
                 continue;
             }
 
-            // Comparaciones
+            // --- CORRECCIÓN 2: Usar FCOMPP para limpiar pila ---
             if (token.equals("CMP")) {
-                if (evalStack.size() < 2) {
-                    throw new RuntimeException("CGI inválida: 'CMP' sin suficientes operandos en pc=" + pc);
-                }
                 String op2 = evalStack.pop();
                 String op1 = evalStack.pop();
                 writer.write(String.format("    FLD %s\n", op1));
                 writer.write(String.format("    FLD %s\n", op2));
                 writer.write("    FXCH\n");
-                writer.write("    FCOMP\n");
+                writer.write("    FCOMPP\n"); // FCOMPP saca AMBOS valores de la pila
                 writer.write("    FSTSW ax\n");
                 writer.write("    SAHF\n\n");
                 continue;
             }
 
-            // Branch (BLE, BGE, BLT, BGT, BEQ, BNE, BI)
             if (isBranch(token)) {
                 if (pc + 1 < rpn.size()) {
                     String dest = rpn.get(pc + 1);
-                    if (dest.matches("^\\d+$")) {
-                        String asmJump = mapBranchToAsm(token, dest);
-                        writer.write("    " + asmJump + "\n\n");
-                        pc++; // consumimos el destino
-                        continue;
-                    } else {
-                        throw new RuntimeException("CGI inválida: branch sin destino numérico en pc=" + pc);
-                    }
+                    writer.write("    " + mapBranchToAsm(token, dest) + "\n\n");
+                    pc++; 
+                    continue;
                 }
             }
 
-            // Operando normal -> lo pushea en la pila virtual
+            // PUSH DE OPERANDOS
             if (isNumberLiteral(token)) {
-                evalStack.push("_" + token); // Coincide con la etiqueta de .data
+                evalStack.push(getValidAsmLabel(token)); 
             } else if (isStringLiteral(token)) { 
-                evalStack.push(token); // Pushea el string literal
+                evalStack.push(token); 
             } else {
-                evalStack.push(token);
+                // Ignoramos READ si llega aquí por error, o cualquier token desconocido
+                if (!token.equals("READ")) {
+                    evalStack.push(getValidAsmLabel(token));
+                }
             }
         }
 
-        // Chequeo si hay algún salto al final del programa
         if (jumpTargets.contains(rpn.size())) {
             writer.write(String.format("L%d:\n", rpn.size()));
         }
 
-        // FIN DEL PROGRAMA
         writer.write("    MOV AX, 4C00h\n");
         writer.write("    INT 21h\n");
+        
+        writePrintProc(writer);
+
         writer.write("END START\n");
+        writer.close();
     }
 
-    /* Reinicia el estado interno para una nueva generación. */
+    private String getValidAsmLabel(String rawToken) {
+        if (isNumberLiteral(rawToken)) {
+            String label = rawToken.replace(".", "_").replace("-", "neg_");
+            return "_" + label;
+        } else {
+            return "_" + rawToken.replace(".", "_");
+        }
+    }
+
     private void resetState() {
         tempCounter = 0;
         temporaries.clear();
@@ -231,22 +209,17 @@ public class AsmCodeGenerator implements FileGenerator {
         operands.clear();
     }
 
-    /*
-     PASADA 1: Recorre la polaca para encontrar Jumps, Operandos y Strings.
-     */
     private void performFirstPreScan(List<String> rpn) {
         for (int i = 0; i < rpn.size(); i++) {
             String tok = rpn.get(i);
-
             if (isBranch(tok)) {
                 if (i + 1 < rpn.size()) {
                     String dest = rpn.get(i + 1);
-                    if (dest.matches("^\\d+$")) {
-                        jumpTargets.add(Integer.parseInt(dest));
-                    }
+                    if (dest.matches("^\\d+$")) jumpTargets.add(Integer.parseInt(dest));
                 }
-                i++; // <-- salta el token de destino
+                i++; 
             } else if (tok.equals("WRITE")) {
+            } else if (tok.equals("READ")) {
             } else if (isStringLiteral(tok)) {
                 stringLiterals.add(tok);
             } else if (!isOperator(tok) && !isControlToken(tok)) {
@@ -255,111 +228,180 @@ public class AsmCodeGenerator implements FileGenerator {
         }
     }
 
-    /*
-     PASADA 2: Simula la ejecución de la cgi solo para descubrir
-     la cantidad de variables temporales necesarias.
-     */
     private void performTemporaryDiscovery(List<String> rpn) {
         Stack<String> dryRunStack = new Stack<>();
         int dryRunTempCounter = 0;
-
         for (int pc = 0; pc < rpn.size(); pc++) {
             String token = rpn.get(pc);
-
             if (token.equals("WRITE")) {
-                if (!dryRunStack.isEmpty()) dryRunStack.pop(); // Pop string
+                if (!dryRunStack.isEmpty()) dryRunStack.pop();
+            } else if (token.equals("READ")) {
+                if (!dryRunStack.isEmpty()) dryRunStack.pop();
             } else if (isArithmeticOperator(token)) {
                 if (dryRunStack.size() < 2) continue;
-                dryRunStack.pop();
-                dryRunStack.pop();
+                dryRunStack.pop(); dryRunStack.pop();
                 dryRunTempCounter++;
                 String tempName = "@T" + dryRunTempCounter;
                 temporaries.add(tempName); 
-                dryRunStack.push(tempName); // simula push del resultado
+                dryRunStack.push(tempName);
             } else if (token.equals(":=") || token.equals("CMP")) {
                 if (dryRunStack.size() < 2) continue;
-                dryRunStack.pop();
-                dryRunStack.pop();
+                dryRunStack.pop(); dryRunStack.pop();
             } else if (isBranch(token)) {
-                pc++; // salta el destino
+                pc++;
             } else if (!isOperator(token) && !isControlToken(token)) { 
-                dryRunStack.push(token); // simula push de operando y strings
+                dryRunStack.push(token);
             }
         }
     }
 
-
     private boolean isOperator(String t) {
-        return isArithmeticOperator(t) || t.equals(":=") || t.equals("CMP") || isBranch(t) || t.equals("WRITE");
+        return isArithmeticOperator(t) || t.equals(":=") || t.equals("CMP") || isBranch(t) || t.equals("WRITE") || t.equals("READ");
     }
-
     private boolean isArithmeticOperator(String t) {
         return t.equals("+") || t.equals("-") || t.equals("*") || t.equals("/");
     }
-
-    private boolean isControlToken(String t) {
-        return t.equals("_PLHDR");
-    }
-
+    private boolean isControlToken(String t) { return t.equals("_PLHDR"); }
     private boolean isBranch(String t) {
         return t.equals("BLE") || t.equals("BGE") || t.equals("BLT") ||
-                t.equals("BGT") || t.equals("BEQ") || t.equals("BNE") ||
-                t.equals("BI");
+                t.equals("BGT") || t.equals("BEQ") || t.equals("BNE") || t.equals("BI");
     }
-
-    private boolean isStringLiteral(String s) { // <--- AÑADIDO
-        return s != null && s.startsWith("\"") && s.endsWith("\"");
-    }
-
-    private boolean isNumberLiteral(String s) {
-        return s != null && (s.matches("^-?\\d+$") || s.matches("^-?\\d+\\.\\d+$"));
-    }
+    private boolean isStringLiteral(String s) { return s != null && s.startsWith("\"") && s.endsWith("\""); }
+    private boolean isNumberLiteral(String s) { return s != null && (s.matches("^-?\\d+$") || s.matches("^-?\\d+\\.\\d+$")); }
 
     private String mapBranchToAsm(String br, String dest) {
         switch (br) {
-            case "BLE": return "JNA L" + dest; // Jump if Not Above (<=)
-            case "BGE": return "JAE L" + dest; // Jump if Above or Equal (>=)
-            case "BLT": return "JB L"  + dest; // Jump if Below (<)
-            case "BGT": return "JA L"  + dest; // Jump if Above (>)
-            case "BEQ": return "JE L"  + dest; // Jump if Equal (==)
-            case "BNE": return "JNE L" + dest; // Jump if Not Equal (!=)
-            case "BI":  return "JMP L" + dest; // Salto Incondicional
+            case "BLE": return "JNA L" + dest;
+            case "BGE": return "JAE L" + dest;
+            case "BLT": return "JB L"  + dest;
+            case "BGT": return "JA L"  + dest;
+            case "BEQ": return "JE L"  + dest;
+            case "BNE": return "JNE L" + dest;
+            case "BI":  return "JMP L" + dest;
         }
         return null;
     }
 
-    /*
-    Obtiene el nombre del siguiente temporal
-    El temporal ya fue declarado en .data
-    */
     private String generateTempName() {
         tempCounter++;
         return "@T" + tempCounter;
     }
-
-    /*
-    Limpia un literal y devuelve su etiqueta única.
-    */
 
     private String getStringLiteralLabel(String raw) {
         String clean = raw;
         if (clean.startsWith("\"") && clean.endsWith("\"") && clean.length() >= 2) {
             clean = clean.substring(1, clean.length() - 1);
         }
-        // Usar hash del string 
         return "_STR_" + Math.abs(clean.hashCode());
     }
 
-    /*
-     Devuelve la línea completa de definición de datos para una cadena literal.
-     */
     private String getStringLiteralData(String raw) {
         String clean = raw;
         if (clean.startsWith("\"") && clean.endsWith("\"") && clean.length() >= 2) {
             clean = clean.substring(1, clean.length() - 1);
         }
         String label = getStringLiteralLabel(raw);
-        // Asegura que el string termine con '$' para la INT 21h/09h
         return label + " db \"" + clean + "$\"\n";
+    }
+
+    private void writePrintProc(FileWriter writer) throws IOException {
+        writer.write("\n; --------------------------------------------------\n");
+        writer.write("; Subrutina para imprimir un numero flotante (ST0)\n");
+        writer.write("; --------------------------------------------------\n");
+        writer.write("PRINT_FLOAT PROC NEAR\n");
+        writer.write("    PUSH AX\n");
+        writer.write("    PUSH BX\n");
+        writer.write("    PUSH CX\n");
+        writer.write("    PUSH DX\n");
+        writer.write("    PUSH SI\n");
+        writer.write("    PUSH DI\n");
+        writer.write("    PUSH BP\n");
+        writer.write("    MOV BP, SP\n\n");
+
+        writer.write("    SUB SP, 4\n\n");
+
+        writer.write("    FSTCW WORD PTR [BP-2]\n");
+        writer.write("    MOV AX, WORD PTR [BP-2]\n");
+        writer.write("    OR AX, 0C00h\n");
+        writer.write("    MOV WORD PTR [BP-4], AX\n");
+        writer.write("    FLDCW WORD PTR [BP-4]\n");
+        writer.write("    FIST WORD PTR [BP-4]\n");
+        writer.write("    FLDCW WORD PTR [BP-2]\n");
+        writer.write("    MOV AX, WORD PTR [BP-4]\n");
+        writer.write("    CALL PRINT_NUM_INT\n\n");
+
+        writer.write("    MOV DL, '.'\n");
+        writer.write("    MOV AH, 02h\n");
+        writer.write("    INT 21h\n\n");
+
+        writer.write("    FISUB WORD PTR [BP-4]\n");
+        writer.write("    MOV CX, 10000\n");
+        writer.write("    MOV WORD PTR [BP-4], CX\n");
+        writer.write("    FIMUL WORD PTR [BP-4]\n");
+        writer.write("    FSTCW WORD PTR [BP-2]\n");
+        writer.write("    MOV AX, WORD PTR [BP-2]\n");
+        writer.write("    OR AX, 0C00h\n");
+        writer.write("    MOV WORD PTR [BP-4], AX\n");
+        writer.write("    FLDCW WORD PTR [BP-4]\n");
+        writer.write("    FISTP WORD PTR [BP-4]\n");
+        writer.write("    FLDCW WORD PTR [BP-2]\n\n");
+
+        writer.write("    MOV AX, WORD PTR [BP-4]\n");
+        writer.write("    CMP AX, 0\n");
+        writer.write("    JGE POS_DEC\n");
+        writer.write("    NEG AX\n");
+        writer.write("POS_DEC:\n");
+        writer.write("    CALL PRINT_NUM_INT\n\n");
+
+        writer.write("    ADD SP, 4\n");
+        writer.write("    POP BP\n");
+        writer.write("    POP DI\n");
+        writer.write("    POP SI\n");
+        writer.write("    POP DX\n");
+        writer.write("    POP CX\n");
+        writer.write("    POP BX\n");
+        writer.write("    POP AX\n");
+        writer.write("    RET\n");
+        writer.write("PRINT_FLOAT ENDP\n\n");
+
+        writer.write("PRINT_NUM_INT PROC NEAR\n");
+        writer.write("    PUSH AX\n");
+        writer.write("    PUSH BX\n");
+        writer.write("    PUSH CX\n");
+        writer.write("    PUSH DX\n\n");
+
+        writer.write("    TEST AX, AX\n");
+        writer.write("    JNS STORE_DIGITS\n");
+        writer.write("    PUSH AX\n");
+        writer.write("    MOV DL, '-'\n");
+        writer.write("    MOV AH, 02h\n");
+        writer.write("    INT 21h\n");
+        writer.write("    POP AX\n");
+        writer.write("    NEG AX\n\n");
+
+        writer.write("STORE_DIGITS:\n");
+        writer.write("    MOV CX, 0\n");
+        writer.write("    MOV BX, 10\n");
+        writer.write("LOOP_DIV:\n");
+        writer.write("    MOV DX, 0\n");
+        writer.write("    DIV BX\n");
+        writer.write("    PUSH DX\n");
+        writer.write("    INC CX\n");
+        writer.write("    TEST AX, AX\n");
+        writer.write("    JNZ LOOP_DIV\n\n");
+
+        writer.write("PRINT_DIGITS:\n");
+        writer.write("    POP DX\n");
+        writer.write("    ADD DL, '0'\n");
+        writer.write("    MOV AH, 02h\n");
+        writer.write("    INT 21h\n");
+        writer.write("    LOOP PRINT_DIGITS\n\n");
+
+        writer.write("    POP DX\n");
+        writer.write("    POP CX\n");
+        writer.write("    POP BX\n");
+        writer.write("    POP AX\n");
+        writer.write("    RET\n");
+        writer.write("PRINT_NUM_INT ENDP\n");
     }
 }
