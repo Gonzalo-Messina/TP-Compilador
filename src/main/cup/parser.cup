@@ -143,12 +143,12 @@ program ::= init_block sentence_list | init_block;
 
 sentence_list ::= sentence_list sentence | sentence;
 
-sentence ::= assignment {: System.out.println("Assignment"); :};
-sentence ::= read {: System.out.println("Sentence = READ"); :};
-sentence ::= write {: System.out.println("Sentence = WRITE"); :};
-sentence ::= if_statement {: System.out.println("Sentence = IF"); :};
-sentence ::= while_statement {: System.out.println("Sentence = WHILE"); :};
-sentence ::= COMMENT {: System.out.println("comentario"); :};
+sentence ::= assignment {: System.out.println("Asignacion"); :};
+sentence ::= read {: System.out.println("Sentencia = READ"); :};
+sentence ::= write {: System.out.println("Sentencia = WRITE"); :};
+sentence ::= if_statement {: System.out.println("Sentencia = IF"); :};
+sentence ::= while_statement {: System.out.println("Sentencia = WHILE"); :};
+sentence ::= COMMENT {: System.out.println("Comentario"); :};
 
 // --- ESTRUCTURAS DE CONTROL ---
 
@@ -375,12 +375,12 @@ simple_condition ::= expression:e1 GT expression:e2
                         //VALIDACION Solo se pueden comparar numeros
                         if (!e1.equals("Int") && !e1.equals("Float")) {
                             throw new lyc.compiler.model.TypeMismatchException(
-                                "Cannot apply '>' to non-numeric type '" + e1 + "'"
+                                "No se puede aplicar '>' al tipo no-numerico '" + e1 + "'"
                             );
                         }
                         if (!e2.equals("Int") && !e2.equals("Float")) {
                             throw new lyc.compiler.model.TypeMismatchException(
-                                "Cannot apply '>' to non-numeric type '" + e2 + "'"
+                                "No se puede aplicar'>' al tipo no-numerico '" + e2 + "'"
                             );
                         }
                         IntermediateCodeGenerator.getInstance().addToken("CMP");
@@ -393,12 +393,12 @@ simple_condition ::= expression:e1 LT expression:e2
                         // VALIDACIONSolo se pueden comparar numeros
                         if (!e1.equals("Int") && !e1.equals("Float")) {
                             throw new lyc.compiler.model.TypeMismatchException(
-                                "Cannot apply '<' to non-numeric type '" + e1 + "'"
+                                "No se puede aplicar '<' al tipo no-numerico '" + e1 + "'"
                             );
                         }
                         if (!e2.equals("Int") && !e2.equals("Float")) {
                             throw new lyc.compiler.model.TypeMismatchException(
-                                "Cannot apply '<' to non-numeric type '" + e2 + "'"
+                                "No se puede aplicar '<' al tipo no-numerico '" + e2 + "'"
                             );
                         }
                         IntermediateCodeGenerator.getInstance().addToken("CMP");
@@ -411,12 +411,12 @@ simple_condition ::= expression:e1 GE expression:e2
                         // VALIDACION Solo se pueden comparar numeros.
                         if (!e1.equals("Int") && !e1.equals("Float")) {
                             throw new lyc.compiler.model.TypeMismatchException(
-                                "Cannot apply '>=' to non-numeric type '" + e1 + "'"
+                                "No se puede aplicar '>=' al tipo no-numerico '" + e1 + "'"
                             );
                         }
                         if (!e2.equals("Int") && !e2.equals("Float")) {
                             throw new lyc.compiler.model.TypeMismatchException(
-                                "Cannot apply '>=' to non-numeric type '" + e2 + "'"
+                                "No se puede aplicar '>=' al tipo no-numerico '" + e2 + "'"
                             );
                         }
                         IntermediateCodeGenerator.getInstance().addToken("CMP");
@@ -429,12 +429,12 @@ simple_condition ::= expression:e1 LE expression:e2
                         //VALIDACION: Solo se pueden comparar numeros
                         if (!e1.equals("Int") && !e1.equals("Float")) {
                             throw new lyc.compiler.model.TypeMismatchException(
-                                "Cannot apply '<=' to non-numeric type '" + e1 + "'"
+                                "No se puede aplicar '<=' al tipo no-numerico '" + e1 + "'"
                             );
                         }
                         if (!e2.equals("Int") && !e2.equals("Float")) {
                             throw new lyc.compiler.model.TypeMismatchException(
-                                "Cannot apply '<=' to non-numeric type '" + e2 + "'"
+                                "No se puede aplicar '<=' al tipo no-numerico '" + e2 + "'"
                             );
                         }
                         IntermediateCodeGenerator.getInstance().addToken("CMP");
@@ -459,8 +459,8 @@ simple_condition ::= expression:e1 EQ expression:e2
                         
                         if (!compatible) {
                             throw new lyc.compiler.model.TypeMismatchException(
-                                "Cannot compare expression of type '" + e1 + 
-                                "' with expression of type '" + e2 + "'"
+                                "No se puede comparar expresiones del tipo '" + e1 + 
+                                "' con expresiones del tipo '" + e2 + "'"
                             );
                         }
                         
@@ -474,7 +474,7 @@ simple_condition ::= IS_ZERO OPEN_BRACKET expression:exp CLOSE_BRACKET
                         // VALIDACIÓN: 'isZero' solo aplica a numeros
                         if (!exp.equals("Int") && !exp.equals("Float")) {
                             throw new lyc.compiler.model.TypeMismatchException(
-                                "Cannot apply 'isZero' to non-numeric type '" + exp + "'"
+                                "No se puede aplicar 'isZero' a tipo no-numerico '" + exp + "'"
                             );
                         }
                         IntermediateCodeGenerator.getInstance().addToken("0");
@@ -524,7 +524,7 @@ id_list ::= IDENTIFIER:id
 
 assignment ::= IDENTIFIER:id ASSIG expression:exprType
             {:
-            System.out.println("Assignment");
+            System.out.println("Asignacion");
             // VALIDACIÓN: Verificar que la variable esté declarada
             if (!lyc.compiler.files.SymbolTableGenerator.getInstance().isVariableDeclared(id.toString())) {
                 throw new lyc.compiler.model.UnknownVariableException("Variable '" + id + "' no fue declarada");
@@ -550,8 +550,8 @@ assignment ::= IDENTIFIER:id ASSIG expression:exprType
                 
                 if (!compatible) {
                     throw new lyc.compiler.model.TypeMismatchException(
-                        "Cannot assign expression of type '" + exprType + "' to variable '" + 
-                        id + "' of type '" + variableType + "'"
+                        "No se puede asignar expresion del tipo '" + exprType + "' a la variable '" + 
+                        id + "' de tipo '" + variableType + "'"
                     );
                 }
             }
@@ -566,10 +566,10 @@ expression ::= expression:e PLUS term:t
             IntermediateCodeGenerator.getInstance().addToken("+");
             // Validar que ambos sean números.
             if (!e.equals("Int") && !e.equals("Float")) {
-                throw new lyc.compiler.model.TypeMismatchException("Cannot apply '+' to non-numeric type '" + e + "'");
+                throw new lyc.compiler.model.TypeMismatchException("No se puede aplicar '+' al tipo no-numerico '" + e + "'");
             }
             if (!t.equals("Int") && !t.equals("Float")) {
-                throw new lyc.compiler.model.TypeMismatchException("Cannot apply '+' to non-numeric type '" + t + "'");
+                throw new lyc.compiler.model.TypeMismatchException("No se puede aplicar '+' al tipo no-numerico '" + t + "'");
             }
             // Si alguno es Float, el resultado es Float
             RESULT = (e.equals("Float") || t.equals("Float")) ? "Float" : "Int";
@@ -581,10 +581,10 @@ expression ::= expression:e SUB term:t
             IntermediateCodeGenerator.getInstance().addToken("-");
             // Validar que ambos sean números.
             if (!e.equals("Int") && !e.equals("Float")) {
-                throw new lyc.compiler.model.TypeMismatchException("Cannot apply '-' to non-numeric type '" + e + "'");
+                throw new lyc.compiler.model.TypeMismatchException("No se puede aplicar '-' al tipo no-numerico '" + e + "'");
             }
             if (!t.equals("Int") && !t.equals("Float")) {
-                throw new lyc.compiler.model.TypeMismatchException("Cannot apply '-' to non-numeric type '" + t + "'");
+                throw new lyc.compiler.model.TypeMismatchException("No se puede aplicar '-' al tipo no-numerico '" + t + "'");
             }
             // Si alguno es Float, el resultado es Float
             RESULT = (e.equals("Float") || t.equals("Float")) ? "Float" : "Int";
@@ -592,7 +592,7 @@ expression ::= expression:e SUB term:t
 
 expression ::= term:t 
             {: 
-            System.out.println("Expression = Term");
+            System.out.println("Expresion = Termino");
             RESULT = t;
             :};
 
@@ -602,10 +602,10 @@ term ::= term:t MULT factor:f
     IntermediateCodeGenerator.getInstance().addToken("*");
     // Validar que ambos sean números.
     if (!t.equals("Int") && !t.equals("Float")) {
-        throw new lyc.compiler.model.TypeMismatchException("Cannot apply '*' to non-numeric type '" + t + "'");
+        throw new lyc.compiler.model.TypeMismatchException("No se puede aplicar '*' al tipo no-numerico '" + t + "'");
     }
     if (!f.equals("Int") && !f.equals("Float")) {
-        throw new lyc.compiler.model.TypeMismatchException("Cannot apply '*' to non-numeric type '" + f + "'");
+        throw new lyc.compiler.model.TypeMismatchException("No se puede aplicar '*' al tipo no-numerico '" + f + "'");
     }
     // Si alguno es Float, el resultado es Float
     RESULT = (t.equals("Float") || f.equals("Float")) ? "Float" : "Int";
@@ -617,10 +617,10 @@ term ::= term:t DIV factor:f
     IntermediateCodeGenerator.getInstance().addToken("/");
     // Validar que ambos sean números.
     if (!t.equals("Int") && !t.equals("Float")) {
-        throw new lyc.compiler.model.TypeMismatchException("Cannot apply '/' to non-numeric type '" + t + "'");
+        throw new lyc.compiler.model.TypeMismatchException("No se puede aplicar '/' al tipo no-numerico '" + t + "'");
     }
     if (!f.equals("Int") && !f.equals("Float")) {
-        throw new lyc.compiler.model.TypeMismatchException("Cannot apply '/' to non-numeric type '" + f + "'");
+        throw new lyc.compiler.model.TypeMismatchException("No se puede aplicar '/' al tipo no-numerico '" + f + "'");
     }
     // Si alguno es Float, el resultado es Float
     RESULT = (t.equals("Float") || f.equals("Float")) ? "Float" : "Int";
@@ -628,7 +628,7 @@ term ::= term:t DIV factor:f
 
 term ::= factor:f 
     {: 
-    System.out.println("Term = factor");
+    System.out.println("Termino = Factor");
     RESULT = f;
     :};
 
@@ -667,13 +667,13 @@ factor ::= TEXT:string_const
 
 factor ::= OPEN_BRACKET expression:e CLOSE_BRACKET 
         {: 
-        System.out.println("Factor = (Expression)");
+        System.out.println("Factor = (Expresion)");
         RESULT = e;
         :};
         
 factor ::= TRIANGLE_AREA_MAXIMUM OPEN_BRACKET arg_list CLOSE_BRACKET
         {:
-        System.out.println("Funcion triangle - metodo");
+        System.out.println("Funcion TrianguleAreaMaximum - metodo");
     
         :};
 
@@ -683,7 +683,7 @@ factor ::= PLUS factor:f
         System.out.println("unario +");
         IntermediateCodeGenerator.getInstance().addToken("+");
         if (!f.equals("Int") && !f.equals("Float")) {
-            throw new lyc.compiler.model.TypeMismatchException("Cannot apply unary '+' to non-numeric type '" + f + "'");
+            throw new lyc.compiler.model.TypeMismatchException("No se puede aplicar unario '+' al tipo no-numerico '" + f + "'");
         }
         RESULT = f;
         :};
@@ -693,7 +693,7 @@ factor ::= SUB factor:f
         System.out.println("unario -");
         IntermediateCodeGenerator.getInstance().addToken("-");
         if (!f.equals("Int") && !f.equals("Float")) {
-            throw new lyc.compiler.model.TypeMismatchException("Cannot apply unary '-' to non-numeric type '" + f + "'");
+            throw new lyc.compiler.model.TypeMismatchException("No se puede aplicar unario '-' al tipo no-numerico '" + f + "'");
         }
         RESULT = f;
         :};
@@ -729,12 +729,12 @@ coords ::= expression:x COMMA expression:y
         // VALIDACIÓN: las coordenadas deben ser numéricas.
         if (!x.equals("Int") && !x.equals("Float")) {
             throw new lyc.compiler.model.TypeMismatchException(
-                "Cannot use non-numeric type '" + x + "' as triangle coordinate"
+                "No se puede usar un tipo no-numerico '" + x + "' como coordenada del triangulo"
             );
         }
         if (!y.equals("Int") && !y.equals("Float")) {
             throw new lyc.compiler.model.TypeMismatchException(
-                "Cannot use non-numeric type '" + y + "' as triangle coordinate"
+                "No se puede usar un tipo no-numerico '" + y + "' como coordenada del triangulo"
             );
         }
 
@@ -764,7 +764,7 @@ triangle ::= OPEN_SQUARE coords:c1 SEMICOLON coords:c2 SEMICOLON coords:c3 CLOSE
 */
 arg_list ::= triangle:t1 SEMICOLON triangle:t2
     {:
-        System.out.println("TRIANGLE_AREA_MAXIMUM");
+        System.out.println("Funcion AreaTrianguleMaximum - Argumentos");
 
         IntermediateCodeGenerator gen = IntermediateCodeGenerator.getInstance();
 
