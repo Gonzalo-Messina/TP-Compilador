@@ -42,7 +42,7 @@ public class AsmCodeGenerator implements FileGenerator {
 
         writer.write(".DATA\n");
 
-        // --- CORRECCIÓN 1: Mejor manejo de constantes numéricas (.99, 99.) ---
+        // --- Manejo de constantes numéricas (.99, 99.) ---
         for (String op : operands) {
             String asmLabel = getValidAsmLabel(op);
 
@@ -50,7 +50,7 @@ public class AsmCodeGenerator implements FileGenerator {
                 symbolTable.addToken(op, "Float", op);
                 
                 String val = op;
-                // Normalizar para TASM (ej: .99 -> 0.99, 99. -> 99.0)
+                // Normalizar (ej: .99 -> 0.99, 99. -> 99.0)
                 if (val.startsWith(".")) {
                     val = "0" + val;
                 }
@@ -121,14 +121,14 @@ public class AsmCodeGenerator implements FileGenerator {
             }
 
             if (isArithmeticOperator(token)) {
-                // --- CORRECCIÓN 3: Soporte para MENOS UNARIO (-123) ---
+                // --- Soporte para MENOS UNARIO (-123) ---
                 if (token.equals("-") && evalStack.size() < 2) {
                     // Si es un '-' y solo hay 1 cosa en la pila, es unario (negativo)
                     String op1 = evalStack.pop();
                     String aux = generateTempName();
                     
                     writer.write(String.format("    FLD %s\n", op1));
-                    writer.write("    FCHS\n"); // Floating Change Sign (cambia signo)
+                    writer.write("    FCHS\n"); // cambia signo
                     writer.write(String.format("    FSTP %s\n\n", aux));
                     
                     evalStack.push(aux);
@@ -269,7 +269,7 @@ public class AsmCodeGenerator implements FileGenerator {
             } else if (token.equals("READ")) {
                 if (!dryRunStack.isEmpty()) dryRunStack.pop();
             } else if (isArithmeticOperator(token)) {
-                // En Discovery, si hay < 2 operandos, asumimos unario y no popeamos 2
+                // si hay < 2 operandos, asumimos unario y no popeamos 2
                 if (dryRunStack.size() < 2) {
                     if (!dryRunStack.isEmpty()) dryRunStack.pop(); // Pop 1 (unario)
                 } else {
@@ -304,7 +304,7 @@ public class AsmCodeGenerator implements FileGenerator {
     }
     private boolean isStringLiteral(String s) { return s != null && s.startsWith("\"") && s.endsWith("\""); }
     
-    // --- CORRECCIÓN 2: Regex mejorada para números ---
+    
     private boolean isNumberLiteral(String s) { 
         return s != null && (
             s.matches("^-?\\d+$") ||           // Enteros: 123, -123
